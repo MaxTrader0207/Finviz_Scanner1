@@ -81,30 +81,6 @@ const OVERVIEW_COLUMN_INDEX = {
   volume: 10,
 } as const;
 
-/**
- * Finviz screener Valuation 表格欄位順序（v=121 檢視）。跟 Overview 不同，
- * 這個檢視在 P/E 後面多了 Fwd P/E / PEG / P/S / P/B / P/C / P/FCF / EPS past 5Y /
- * EPS next 5Y / Sales past 5Y 這些欄位，Price 的位置也因此往後移。
- *
- * 這組索引是依照一份真實抓到的 Finviz Valuation 檢視範例頁面推算出來的，
- * 不是 100% 對照過即時頁面確認—— defensiveIncomeValue 這個視角改用這個
- * layout 之後，請務必用 pnpm dlx wrangler d1 execute 查一次真實同步結果，
- * 確認 P/B 數值合理（例如不是市值或成交量之類跑錯欄位的數字）。
- */
-const VALUATION_COLUMN_INDEX = {
-  ticker: 1,
-  company: 2,
-  sector: 3,
-  industry: 4,
-  country: 5,
-  marketCap: 6,
-  pe: 7,
-  priceToBook: 11,
-  price: 17,
-  change: 18,
-  volume: 19,
-} as const;
-
 export type ScreenerColumnLayout = {
   ticker: number;
   company: number;
@@ -116,13 +92,7 @@ export type ScreenerColumnLayout = {
   price: number;
   change: number;
   volume: number;
-  priceToBook?: number;
 };
-
-export const SCREENER_LAYOUTS = {
-  overview: OVERVIEW_COLUMN_INDEX,
-  valuation: VALUATION_COLUMN_INDEX,
-} satisfies Record<string, ScreenerColumnLayout>;
 
 export function parseFinvizScreenerHtml(html: string, layout: ScreenerColumnLayout = OVERVIEW_COLUMN_INDEX): ParseResult {
   const $ = cheerio.load(html);
@@ -134,12 +104,11 @@ export function parseFinvizScreenerHtml(html: string, layout: ScreenerColumnLayo
   // class name 的依賴，同時仍可透過欄位數量與型別驗證過濾掉標題列/廣告列。
   const rowSelectors = ["table.screener_table tbody tr", "tr.styled-row", "table[bgcolor] tr"];
   const seenTickers = new Set<string>();
-  const maxColumnIndex = Math.max(layout.volume, layout.priceToBook ?? 0);
 
   for (const selector of rowSelectors) {
     $(selector).each((_, el) => {
       const tdCells = $(el).find("td");
-      if (tdCells.length <= maxColumnIndex) return;
+      if (tdCells.length <= layout.volume) return;
 
       const cells = tdCells.map((__, td) => $(td).text().trim()).get();
 
@@ -164,7 +133,6 @@ export function parseFinvizScreenerHtml(html: string, layout: ScreenerColumnLayo
         price: parseNumberCell(cells[layout.price] ?? ""),
         change: parseNumberCell(cells[layout.change] ?? ""),
         volume: Math.round(parseNumberCell(cells[layout.volume] ?? "")),
-        ...(layout.priceToBook !== undefined ? { priceToBook: cells[layout.priceToBook] } : {}),
       };
 
       const parsed = scrapedStockSchema.safeParse(candidate);
@@ -179,6 +147,49 @@ export function parseFinvizScreenerHtml(html: string, layout: ScreenerColumnLayo
     if (stocks.length > 0) break; // 找到有效選擇器後不用再嘗試其他候選選擇器
   }
 
-
   return { stocks, skippedRowCount };
+}
+
+/**
+ * Finviz screener Valuation 表格欄位順序（v=121 檢視）。這個檢視**沒有**
+ * Company/Sector/Industry/Country 欄位（跟 Overview 不同），欄位是：
+ * No. / Ticker / Market Cap / P/E / Fwd P/E / PEG / P/S / P/B / P/C / P/FCF /
+ * EPS this Y / EPS next Y / EPS past 5Y / EPS next 5Y / Sales past 5Y /
+ * Price / Change / Volume
+ *
+ * 這組索引是 2026-09-04 對照真實登入後的 Finviz 頁面截圖確認過的（不是猜測）。
+ */
+const VALUATION_TICKER_INDEX = 1;
+const VALUATION_PRICE_TO_BOOK_INDEX = 7;
+
+/**
+ * 因為 Valuation 檢視沒有 Company/Sector/Industry/Country，沒辦法套用完整的
+ * scrapedStockSchema，所以獨立成一個只抓「代碼 -> P/B」對照表的函式。呼叫端
+ * （fetchScreen.ts）會用這個表，依代碼把 P/B 併回 Overview 檢視抓到的完整資料。
+ */
+export function parseValuationPriceToBook(html: string): Map<string, string> {
+  const $ = cheerio.load(html);
+  const result = new Map<string, string>();
+  const rowSelectors = ["table.screener_table tbody tr", "tr.styled-row", "table[bgcolor] tr"];
+
+  for (const selector of rowSelectors) {
+    $(selector).each((_, el) => {
+      const tdCells = $(el).find("td");
+      if (tdCells.length <= VALUATION_PRICE_TO_BOOK_INDEX) return;
+
+      const cells = tdCells.map((__, td) => $(td).text().trim()).get();
+      const tickerCell = tdCells.eq(VALUATION_TICKER_INDEX);
+      const tickerAnchors = tickerCell.find("a");
+      const ticker = (tickerAnchors.length > 0 ? tickerAnchors.last().text().trim() : cells[VALUATION_TICKER_INDEX]) || cells[VALUATION_TICKER_INDEX];
+      const priceToBook = cells[VALUATION_PRICE_TO_BOOK_INDEX];
+
+      if (ticker && priceToBook && !result.has(ticker)) {
+        result.set(ticker, priceToBook);
+      }
+    });
+
+    if (result.size > 0) break;
+  }
+
+  return result;
 }

@@ -166,7 +166,7 @@ export const screens: Screen[] = [
     navLabel: "收息 × 防禦",
     eyebrow: "INCOME × VALUE × DEFENSE",
     note: "以股息殖利率、配息紀律、正營業利益率、低 P/B、機構持股與低 Beta，篩選兼具收息與波動防禦特徵的價值型標的。",
-    sourceUrl: "https://finviz.com/screener?v=121&f=fa_div_o3%2Cfa_opermargin_pos%2Cfa_payoutratio_u60%2Cfa_pb_u2%2Csh_instown_o50%2Csh_price_o10%2Cta_beta_u1%2Ctad_0_close%3A%3Aclose%3Ad&ft=4&o=price",
+    sourceUrl: "https://finviz.com/screener?v=111&f=fa_div_o3%2Cfa_opermargin_pos%2Cfa_payoutratio_u60%2Cfa_pb_u2%2Csh_instown_o50%2Csh_price_o10%2Cta_beta_u1%2Ctad_0_close%3A%3Aclose%3Ad&ft=4&o=price",
     snapshotAt: "2026.08.22 · 01:55–01:59 ET",
     snapshotTotal: 71,
     loadedScope: "完整 71 檔 Finviz 快照；每頁呈現 20 檔，可使用分頁逐步查看。",

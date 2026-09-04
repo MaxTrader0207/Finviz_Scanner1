@@ -1,4 +1,4 @@
-import { parseFinvizScreenerHtml, SCREENER_LAYOUTS, type ScrapedStock } from "./parseScreen";
+import { parseFinvizScreenerHtml, parseValuationPriceToBook, type ScrapedStock } from "./parseScreen";
 import { parseFinvizInsiderTradingHtml, type ScrapedInsiderTransaction } from "./parseInsiderTrading";
 import { SCREEN_SOURCES, INSIDER_TRADING_SOURCE_URLS } from "./screenSources";
 
@@ -7,10 +7,6 @@ const DELAY_BETWEEN_REQUESTS_MS = 2_000;
 const REQUEST_USER_AGENT = "SignalLedger/1.0 (personal research dashboard; contact: maxwei6699@gmail.com)";
 
 const SCREENS_WHERE_ZERO_RESULTS_ARE_EXPECTED = new Set(["newHighMomentum", "megaValueQuality"]);
-
-// defensiveIncomeValue 改用 Finviz 的 Valuation 檢視（v=121）抓取，欄位順序
-// 跟其他視角用的 Overview 檢視（v=111）不同，需要對應不同的欄位版型。
-const SCREENS_USING_VALUATION_LAYOUT = new Set(["defensiveIncomeValue"]);
 
 export type ScreenFetchResult =
   | { screenKey: string; screenName: string; sourceUrl: string; status: "ok"; stocks: ScrapedStock[]; skippedRowCount: number }
@@ -29,17 +25,33 @@ async function fetchHtml(url: string): Promise<string> {
   return response.text();
 }
 
-async function fetchOneScreen(screenKey: string, screenName: string, sourceUrl: string): Promise<ScreenFetchResult> {
+async function fetchOneScreen(screenKey: string, screenName: string, sourceUrl: string, valuationSourceUrl: string | undefined): Promise<ScreenFetchResult> {
   try {
     const html = await fetchHtml(sourceUrl);
-    const layout = SCREENS_USING_VALUATION_LAYOUT.has(screenKey) ? SCREENER_LAYOUTS.valuation : SCREENER_LAYOUTS.overview;
-    const { stocks, skippedRowCount } = parseFinvizScreenerHtml(html, layout);
+    const { stocks, skippedRowCount } = parseFinvizScreenerHtml(html);
 
     if (stocks.length === 0 && !SCREENS_WHERE_ZERO_RESULTS_ARE_EXPECTED.has(screenKey)) {
       throw new Error(`Parsed 0 stocks (skipped ${skippedRowCount} rows) — selector likely stale`);
     }
 
-    return { screenKey, screenName, sourceUrl, status: "ok", stocks, skippedRowCount };
+    let enrichedStocks = stocks;
+    if (valuationSourceUrl && stocks.length > 0) {
+      // P/B 不在 Overview 檢視裡，額外抓一次 Valuation 檢視、依代碼合併進來。
+      // 這一步失敗不影響主要資料——只是這個視角會缺 P/B，不會讓整個視角判定失敗。
+      try {
+        await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_REQUESTS_MS));
+        const valuationHtml = await fetchHtml(valuationSourceUrl);
+        const priceToBookByTicker = parseValuationPriceToBook(valuationHtml);
+        enrichedStocks = stocks.map((stock) => {
+          const priceToBook = priceToBookByTicker.get(stock.ticker);
+          return priceToBook ? { ...stock, priceToBook } : stock;
+        });
+      } catch (error) {
+        console.warn(`[Finviz Sync] Unable to enrich ${screenKey} with P/B from Valuation view:`, error);
+      }
+    }
+
+    return { screenKey, screenName, sourceUrl, status: "ok", stocks: enrichedStocks, skippedRowCount };
   } catch (error) {
     return { screenKey, screenName, sourceUrl, status: "error", error: error instanceof Error ? error.message : String(error) };
   }
@@ -71,7 +83,7 @@ export async function fetchAllScreens(): Promise<{ screens: ScreenFetchResult[];
   const results: ScreenFetchResult[] = [];
 
   for (const screen of SCREEN_SOURCES) {
-    results.push(await fetchOneScreen(screen.key, screen.name, screen.sourceUrl));
+    results.push(await fetchOneScreen(screen.key, screen.name, screen.sourceUrl, screen.valuationSourceUrl));
     await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_REQUESTS_MS));
   }
 

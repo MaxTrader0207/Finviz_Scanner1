@@ -8,6 +8,8 @@ export type ScreenSource = {
   key: string;
   name: string;
   sourceUrl: string;
+  /** 選填：同一組篩選條件的 Valuation 檢視（v=121）網址，用來額外抓 P/B。 */
+  valuationSourceUrl?: string;
 };
 
 export const SCREEN_SOURCES: ScreenSource[] = [
@@ -34,7 +36,9 @@ export const SCREEN_SOURCES: ScreenSource[] = [
   {
     key: "defensiveIncomeValue",
     name: "穩健收息與價值防禦型多頭",
-    sourceUrl: "https://finviz.com/screener?v=121&f=fa_div_o3%2Cfa_opermargin_pos%2Cfa_payoutratio_u60%2Cfa_pb_u2%2Csh_instown_o50%2Csh_price_o10%2Cta_beta_u1%2Ctad_0_close%3A%3Aclose%3Ad&ft=4&o=price",
+    sourceUrl: "https://finviz.com/screener?v=111&f=fa_div_o3%2Cfa_opermargin_pos%2Cfa_payoutratio_u60%2Cfa_pb_u2%2Csh_instown_o50%2Csh_price_o10%2Cta_beta_u1%2Ctad_0_close%3A%3Aclose%3Ad&ft=4&o=price",
+    valuationSourceUrl:
+      "https://finviz.com/screener?v=121&f=fa_div_o3%2Cfa_opermargin_pos%2Cfa_payoutratio_u60%2Cfa_pb_u2%2Csh_instown_o50%2Csh_price_o10%2Cta_beta_u1%2Ctad_0_close%3A%3Aclose%3Ad&ft=4&o=price",
   },
   {
     key: "topGainers",
