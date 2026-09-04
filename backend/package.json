@@ -1,0 +1,31 @@
+{
+  "name": "@signal-ledger/backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "check": "tsc --noEmit",
+    "build:types": "tsc --project tsconfig.json --emitDeclarationOnly --declaration --noEmit false --outDir dist-types",
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate:local": "wrangler d1 migrations apply signal-ledger-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply signal-ledger-db --remote",
+    "secret:set": "wrangler secret put"
+  },
+  "dependencies": {
+    "@trpc/server": "^11.6.0",
+    "cheerio": "^1.0.0",
+    "drizzle-orm": "^0.44.5",
+    "superjson": "^1.13.3",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260901.0",
+    "drizzle-kit": "^0.31.4",
+    "typescript": "5.9.3",
+    "vitest": "^2.1.4",
+    "wrangler": "^4.28.0"
+  }
+}

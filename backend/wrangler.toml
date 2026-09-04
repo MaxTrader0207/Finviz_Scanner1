@@ -1,0 +1,23 @@
+name = "signal-ledger-backend"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+# 每日 22:00 UTC（= 台灣時間隔日 06:00，美股收盤之後）觸發一次 Finviz 同步。
+# 對應 src/index.ts 的 scheduled() handler，取代原本 Manus Heartbeat 的
+# HTTP callback 機制 —— 這裡完全宣告式、不需要對外開放任何 callback 端點。
+[triggers]
+crons = ["0 22 * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "signal-ledger-db"
+# 執行過一次 `wrangler d1 create signal-ledger-db` 之後，把印出來的
+# database_id 貼在這裡。
+database_id = "0cd7e04c-6170-42f2-8f0e-e2eea6bba4c7"
+migrations_dir = "drizzle"
+
+# 非機密設定值。實際機密（ADMIN_TOKEN / ANTHROPIC_API_KEY / ALERT_WEBHOOK_URL）
+# 用 `wrangler secret put <NAME>` 個別設定，不要寫在這個檔案裡（見 README）。
+[vars]
+ALLOWED_ORIGIN = "https://MaxTrader0207.github.io"

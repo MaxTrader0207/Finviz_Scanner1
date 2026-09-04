@@ -1,0 +1,15 @@
+# 複製這個檔案為 .dev.vars（已加入 .gitignore），填入本機開發用的值。
+# 部署到 Cloudflare 之後，正式環境的值改用：
+#   wrangler secret put ADMIN_TOKEN
+#   wrangler secret put ANTHROPIC_API_KEY
+#   wrangler secret put ALERT_WEBHOOK_URL
+# 設定，不要把正式金鑰寫進任何會被 git 追蹤的檔案。
+
+# 保護 finvizSync.triggerNow 這類管理操作的權杖，自己隨機產生一組長字串即可。
+ADMIN_TOKEN=replace-with-a-long-random-string
+
+# https://console.anthropic.com/settings/keys
+ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# 選填：Discord 或 Slack 的 Incoming Webhook URL，同步失敗時會發通知。不填就只會印 log。
+ALERT_WEBHOOK_URL=

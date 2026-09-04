@@ -1,0 +1,15 @@
+{
+  "name": "signal-ledger",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:frontend": "pnpm --filter @signal-ledger/frontend dev",
+    "dev:backend": "pnpm --filter @signal-ledger/backend dev",
+    "build:types": "pnpm --filter @signal-ledger/backend build:types",
+    "build:frontend": "pnpm run build:types && pnpm --filter @signal-ledger/frontend build",
+    "deploy:backend": "pnpm --filter @signal-ledger/backend deploy",
+    "check": "pnpm run build:types && pnpm --filter @signal-ledger/frontend check && pnpm --filter @signal-ledger/backend check",
+    "test": "pnpm --filter @signal-ledger/frontend test && pnpm --filter @signal-ledger/backend test"
+  },
+  "packageManager": "pnpm@10.4.1"
+}

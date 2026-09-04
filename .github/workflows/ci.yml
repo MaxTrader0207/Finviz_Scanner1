@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.4.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # backend 必須先產生型別宣告檔，frontend 的型別檢查才吃得到
+      # AppRouter 型別（見 README「跨套件型別共享」一節）。
+      - run: pnpm run build:types
+
+      - run: pnpm --filter @signal-ledger/frontend check
+      - run: pnpm --filter @signal-ledger/backend check
+
+      - run: pnpm --filter @signal-ledger/frontend test
+      - run: pnpm --filter @signal-ledger/backend test

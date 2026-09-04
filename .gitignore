@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+frontend/dist/
+backend/dist-types/
+*.tsbuildinfo
+
+# Wrangler local state (D1 local DB files, cache)
+backend/.wrangler/
+
+# Environment / secrets — never commit real values
+.env
+.env.local
+frontend/.env
+backend/.dev.vars
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Coverage
+coverage/
