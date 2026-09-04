@@ -19,6 +19,7 @@ export function getLatestCloseByTicker<T extends { points: Array<{ close: number
 export function formatPriceUpdatedAt(timestamp: number | null): string {
   if (timestamp === null || !Number.isFinite(timestamp)) return "尚未取得";
   return new Intl.DateTimeFormat("zh-TW", {
+    timeZone: "Asia/Taipei",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",

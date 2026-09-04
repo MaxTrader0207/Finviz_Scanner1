@@ -1,4 +1,4 @@
-import { parseFinvizScreenerHtml, type ScrapedStock } from "./parseScreen";
+import { parseFinvizScreenerHtml, SCREENER_LAYOUTS, type ScrapedStock } from "./parseScreen";
 import { parseFinvizInsiderTradingHtml, type ScrapedInsiderTransaction } from "./parseInsiderTrading";
 import { SCREEN_SOURCES, INSIDER_TRADING_SOURCE_URLS } from "./screenSources";
 
@@ -7,6 +7,10 @@ const DELAY_BETWEEN_REQUESTS_MS = 2_000;
 const REQUEST_USER_AGENT = "SignalLedger/1.0 (personal research dashboard; contact: maxwei6699@gmail.com)";
 
 const SCREENS_WHERE_ZERO_RESULTS_ARE_EXPECTED = new Set(["newHighMomentum", "megaValueQuality"]);
+
+// defensiveIncomeValue 改用 Finviz 的 Valuation 檢視（v=121）抓取，欄位順序
+// 跟其他視角用的 Overview 檢視（v=111）不同，需要對應不同的欄位版型。
+const SCREENS_USING_VALUATION_LAYOUT = new Set(["defensiveIncomeValue"]);
 
 export type ScreenFetchResult =
   | { screenKey: string; screenName: string; sourceUrl: string; status: "ok"; stocks: ScrapedStock[]; skippedRowCount: number }
@@ -28,7 +32,8 @@ async function fetchHtml(url: string): Promise<string> {
 async function fetchOneScreen(screenKey: string, screenName: string, sourceUrl: string): Promise<ScreenFetchResult> {
   try {
     const html = await fetchHtml(sourceUrl);
-    const { stocks, skippedRowCount } = parseFinvizScreenerHtml(html);
+    const layout = SCREENS_USING_VALUATION_LAYOUT.has(screenKey) ? SCREENER_LAYOUTS.valuation : SCREENER_LAYOUTS.overview;
+    const { stocks, skippedRowCount } = parseFinvizScreenerHtml(html, layout);
 
     if (stocks.length === 0 && !SCREENS_WHERE_ZERO_RESULTS_ARE_EXPECTED.has(screenKey)) {
       throw new Error(`Parsed 0 stocks (skipped ${skippedRowCount} rows) — selector likely stale`);

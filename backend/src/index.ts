@@ -8,8 +8,12 @@ const TRPC_ENDPOINT = "/trpc";
 
 function corsHeaders(env: Env, request: Request): HeadersInit {
   const allowedOrigin = env.ALLOWED_ORIGIN || "*";
-  const requestOrigin = request.headers.get("origin");
-  const originToAllow = allowedOrigin === "*" ? "*" : requestOrigin === allowedOrigin ? allowedOrigin : allowedOrigin;
+  const requestOrigin = request.headers.get("origin") ?? "";
+  // GitHub Pages 的網址一律是小寫（跟 GitHub 帳號顯示名稱的大小寫無關），
+  // 所以這裡改成不分大小寫比對；比對成功時要原樣回傳瀏覽器送來的 Origin
+  // （不是設定值本身），因為瀏覽器要求這個標頭要跟它送出的 Origin逐字元相符。
+  const isAllowed = allowedOrigin === "*" || requestOrigin.toLowerCase() === allowedOrigin.toLowerCase();
+  const originToAllow = allowedOrigin === "*" ? "*" : isAllowed ? requestOrigin : "null";
   return {
     "access-control-allow-origin": originToAllow,
     "access-control-allow-methods": "GET, POST, OPTIONS",

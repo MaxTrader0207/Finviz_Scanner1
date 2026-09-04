@@ -3,6 +3,7 @@ import { trpc } from "./trpc";
 import { screens as staticScreens, type Screen, type Stock } from "./screenerData";
 
 const SNAPSHOT_TIME_FORMATTER = new Intl.DateTimeFormat("zh-TW", {
+  timeZone: "Asia/Taipei",
   year: "numeric",
   month: "2-digit",
   day: "2-digit",
@@ -61,9 +62,30 @@ export function useScreens(): UseScreensResult {
       if (template.key === "insiderTrading") {
         return { ...template, snapshotAt: formatSnapshotAt(snapshot.fetchedAt) };
       }
+
+      let stocks = snapshot.stocks as Stock[];
+      if (template.key === "defensiveIncomeValue") {
+        // 後端這個視角改用 Finviz 的 Valuation 檢視抓取，多了 priceToBook 這個
+        // 扁平欄位；UI 原本是從 defensiveMetrics 這個巢狀物件讀取 P/B，這裡轉換
+        // 一下形狀。殖利率、配息率、Beta 目前這個檢視抓不到，維持顯示「—」。
+        stocks = stocks.map((stock) => {
+          const rawPriceToBook = (stock as Stock & { priceToBook?: string }).priceToBook;
+          return {
+            ...stock,
+            defensiveMetrics: {
+              dividendYield: "—",
+              payoutRatio: "—",
+              priceToBook: rawPriceToBook ?? "—",
+              beta: "—",
+              snapshotSource: "Finviz",
+            },
+          };
+        });
+      }
+
       return {
         ...template,
-        stocks: snapshot.stocks as Stock[],
+        stocks,
         snapshotAt: formatSnapshotAt(snapshot.fetchedAt),
         snapshotTotal: snapshot.stockCount,
       };

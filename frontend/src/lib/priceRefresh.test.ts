@@ -30,12 +30,14 @@ describe("getLatestCloseByTicker", () => {
 });
 
 describe("formatPriceUpdatedAt", () => {
-  it("formats a fetchedAt timestamp with date and time", () => {
+  it("formats a fetchedAt timestamp in Asia/Taipei time, regardless of the machine's local timezone", () => {
+    // 09:05:07 UTC = 17:05:07 台北時間（UTC+8）。timeZone 是明確寫死的，
+    // 這個結果在任何機器、任何 CI 環境上執行都應該一致，不能依賴系統時區。
     const formatted = formatPriceUpdatedAt(Date.UTC(2026, 7, 28, 9, 5, 7));
     expect(formatted).toMatch(/2026/);
     expect(formatted).toMatch(/08/);
     expect(formatted).toMatch(/28/);
-    expect(formatted).toMatch(/09:05:07/);
+    expect(formatted).toMatch(/17:05:07/);
   });
 
   it("shows a clear empty state without a timestamp", () => {

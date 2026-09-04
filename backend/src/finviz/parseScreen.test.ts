@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseFinvizScreenerHtml, parseMarketCapToBillions } from "./parseScreen";
+import { parseFinvizScreenerHtml, parseMarketCapToBillions, SCREENER_LAYOUTS } from "./parseScreen";
 
 /**
  * 這份 fixture 是依照 parseScreen.ts 裡記載的欄位順序手動建立，
@@ -25,6 +25,26 @@ const SAMPLE_SCREENER_HTML = `
 `;
 
 const EMPTY_TABLE_HTML = `<html><body><table class="screener_table"><tbody></tbody></table></body></html>`;
+
+/**
+ * Valuation 檢視（v=121）的欄位版型跟 Overview 不同：P/E 後面多了 Fwd P/E、PEG、
+ * P/S、P/B、P/C、P/FCF、EPS past 5Y、EPS next 5Y、Sales past 5Y 這些欄位，
+ * Price/Change/Volume 因此往後移到第 17/18/19 欄。這份 fixture 是依照
+ * VALUATION_COLUMN_INDEX 手動建立，同樣沒有對照過真實頁面。
+ */
+const VALUATION_SCREENER_HTML = `
+<html><body>
+<table class="screener_table">
+  <tbody>
+    <tr>
+      <td>1</td><td><a href="/quote?t=AUPH" class="tab-link">AUPH</a></td><td>Aurinia Pharmaceuticals Inc</td><td>Healthcare</td><td>Biotechnology</td><td>Canada</td><td>2.30B</td><td>7.55</td>
+      <td>9.10</td><td>1.20</td><td>3.40</td><td>1.85</td><td>5.60</td><td>18.20</td><td>-</td><td>-</td><td>-</td>
+      <td>17.27</td><td>6.80%</td><td>2,637,100</td>
+    </tr>
+  </tbody>
+</table>
+</body></html>
+`;
 
 describe("parseFinvizScreenerHtml", () => {
   it("extracts structured stock rows in document order", () => {
@@ -59,6 +79,17 @@ describe("parseFinvizScreenerHtml", () => {
     const { stocks, skippedRowCount } = parseFinvizScreenerHtml(EMPTY_TABLE_HTML);
     expect(stocks).toEqual([]);
     expect(skippedRowCount).toBe(0);
+  });
+
+  it("extracts priceToBook from its Valuation-view column position when given the valuation layout", () => {
+    const { stocks, skippedRowCount } = parseFinvizScreenerHtml(VALUATION_SCREENER_HTML, SCREENER_LAYOUTS.valuation);
+    expect(skippedRowCount).toBe(0);
+    const auph = stocks.find((stock) => stock.ticker === "AUPH");
+    expect(auph?.priceToBook).toBe("1.85");
+    // Price/Change/Volume 位置也跟著 Valuation 版型移動，同一次驗證欄位沒有錯位。
+    expect(auph?.price).toBeCloseTo(17.27);
+    expect(auph?.change).toBeCloseTo(6.8);
+    expect(auph?.volume).toBe(2_637_100);
   });
 });
 
