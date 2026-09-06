@@ -65,18 +65,18 @@ export function useScreens(): UseScreensResult {
 
       let stocks = snapshot.stocks as Stock[];
       if (template.key === "defensiveIncomeValue") {
-        // 後端這個視角改用 Finviz 的 Valuation 檢視抓取，多了 priceToBook 這個
-        // 扁平欄位；UI 原本是從 defensiveMetrics 這個巢狀物件讀取 P/B，這裡轉換
-        // 一下形狀。殖利率、配息率、Beta 目前這個檢視抓不到，維持顯示「—」。
+        // 後端這個視角改用 Finviz 的 Valuation 檢視抓 P/B、stockanalysis.com
+        // 補殖利率/配息率/Beta，這三個都是扁平欄位；UI 原本是從 defensiveMetrics
+        // 這個巢狀物件讀取，這裡轉換一下形狀。個別股票若查無資料則顯示「—」。
         stocks = stocks.map((stock) => {
-          const rawPriceToBook = (stock as Stock & { priceToBook?: string }).priceToBook;
+          const raw = stock as Stock & { priceToBook?: string; dividendYield?: string; payoutRatio?: string; beta?: string };
           return {
             ...stock,
             defensiveMetrics: {
-              dividendYield: "—",
-              payoutRatio: "—",
-              priceToBook: rawPriceToBook ?? "—",
-              beta: "—",
+              dividendYield: raw.dividendYield ?? "—",
+              payoutRatio: raw.payoutRatio ?? "—",
+              priceToBook: raw.priceToBook ?? "—",
+              beta: raw.beta ?? "—",
               snapshotSource: "Finviz",
             },
           };
