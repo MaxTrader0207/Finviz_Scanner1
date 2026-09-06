@@ -44,7 +44,8 @@ import { getStockCardMetrics } from "@/lib/stockCardMetrics";
 import { clearWatchlistTickers, parseWatchlist, parseWatchlistSources, toggleWatchlistTicker, WATCHLIST_SOURCE_STORAGE_KEY, WATCHLIST_STORAGE_KEY } from "@/lib/watchlist";
 import { getSectorChartAxisMax, getWatchlistSectorComposition, sortSectorComposition, type SectorCompositionSortDirection } from "@/lib/watchlistComposition";
 import { buildMiniCandleGeometry, getMiniCandlePoints, MINI_CANDLE_POINT_LIMIT } from "@/lib/miniCandleChart";
-import { formatPriceUpdatedAt, getLatestCloseByTicker, getLatestPriceFetchedAt } from "@/lib/priceRefresh";
+import { fetchPriceHistoriesChunked, formatPriceUpdatedAt, getLatestCloseByTicker, getLatestPriceFetchedAt } from "@/lib/priceRefresh";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { scrollToScreenTop } from "@/lib/screenNavigation";
 import { getInsiderSectorComposition, getInsiderTickerSector, getTopInsiderTransactions, insiderBuyTransactions, insiderSaleTransactions, INSIDER_SNAPSHOT_AT, INSIDER_SOURCE_URLS, type InsiderSortDirection, type InsiderSortKey, type InsiderTransaction } from "@/lib/insiderTrading";
 import { trpc } from "@/lib/trpc";
@@ -192,8 +193,19 @@ export default function Home() {
   const activeDefensivePage = Math.min(defensivePage, defensivePageTotal);
   const renderedRankedStocks = useMemo(() => isDefensiveScreen ? defensivePageSlice(rankedStocks, activeDefensivePage) : rankedStocks, [activeDefensivePage, isDefensiveScreen, rankedStocks]);
   const priceHistoryInput = useMemo(() => ({ tickers: renderedRankedStocks.map(({ stock }) => stock.ticker) }), [renderedRankedStocks]);
-  const miniPriceHistories = trpc.priceHistory.list.useQuery(priceHistoryInput, { enabled: priceHistoryInput.tickers.length > 0, staleTime: 15 * 60 * 1000, retry: 1 });
   const priceHistoryUtils = trpc.useUtils();
+  const queryClient = useQueryClient();
+  // 一次對後端請求太多股票代碼（forceRefresh 時尤其明顯）會讓單次 Cloudflare
+  // Worker 執行超過 CPU 時間上限，所以改用 fetchPriceHistoriesChunked 拆成
+  // 小批次分開請求，而不是直接用 trpc.priceHistory.list.useQuery 整批送出。
+  const priceHistoryQueryKey = useMemo(() => ["priceHistoryChunked", ...priceHistoryInput.tickers], [priceHistoryInput.tickers]);
+  const miniPriceHistories = useQuery({
+    queryKey: priceHistoryQueryKey,
+    queryFn: () => fetchPriceHistoriesChunked(priceHistoryInput.tickers, (chunk) => priceHistoryUtils.priceHistory.list.fetch({ tickers: chunk })),
+    enabled: priceHistoryInput.tickers.length > 0,
+    staleTime: 15 * 60 * 1000,
+    retry: 1,
+  });
   const currentPrices = useMemo(() => getLatestCloseByTicker(miniPriceHistories.data?.histories), [miniPriceHistories.data]);
   const latestFetchedAt = useMemo(() => getLatestPriceFetchedAt(miniPriceHistories.data?.histories), [miniPriceHistories.data]);
 
@@ -206,8 +218,10 @@ export default function Home() {
     setIsPriceRefreshing(true);
     setPriceRefreshError(null);
     try {
-      const refreshed = await priceHistoryUtils.priceHistory.list.fetch({ ...priceHistoryInput, forceRefresh: true });
-      priceHistoryUtils.priceHistory.list.setData(priceHistoryInput, refreshed);
+      const refreshed = await fetchPriceHistoriesChunked(priceHistoryInput.tickers, (chunk) =>
+        priceHistoryUtils.priceHistory.list.fetch({ tickers: chunk, forceRefresh: true })
+      );
+      queryClient.setQueryData(priceHistoryQueryKey, refreshed);
       const refreshedAt = getLatestPriceFetchedAt(refreshed.histories);
       if (refreshedAt !== null) setLastPriceUpdatedAt(refreshedAt);
       toast.success("目前股價已更新", { description: `已重新取得 ${priceHistoryInput.tickers.length} 檔 Yahoo Finance 最新日線資料。` });

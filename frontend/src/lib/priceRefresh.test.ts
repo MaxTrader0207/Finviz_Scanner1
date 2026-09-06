@@ -1,5 +1,55 @@
-import { describe, expect, it } from "vitest";
-import { formatPriceUpdatedAt, getLatestCloseByTicker, getLatestPriceFetchedAt } from "./priceRefresh";
+import { describe, expect, it, vi } from "vitest";
+import { chunkTickers, fetchPriceHistoriesChunked, formatPriceUpdatedAt, getLatestCloseByTicker, getLatestPriceFetchedAt, PRICE_HISTORY_CHUNK_SIZE } from "./priceRefresh";
+
+describe("chunkTickers", () => {
+  it("splits a ticker list into groups no larger than the chunk size", () => {
+    const tickers = Array.from({ length: 19 }, (_, i) => `T${i}`);
+    const chunks = chunkTickers(tickers, 8);
+    expect(chunks).toHaveLength(3);
+    expect(chunks[0]).toHaveLength(8);
+    expect(chunks[1]).toHaveLength(8);
+    expect(chunks[2]).toHaveLength(3);
+    expect(chunks.flat()).toEqual(tickers);
+  });
+
+  it("defaults to PRICE_HISTORY_CHUNK_SIZE when no size is given", () => {
+    const tickers = Array.from({ length: PRICE_HISTORY_CHUNK_SIZE + 1 }, (_, i) => `T${i}`);
+    expect(chunkTickers(tickers)).toHaveLength(2);
+  });
+
+  it("returns a single empty-list result for an empty input", () => {
+    expect(chunkTickers([])).toEqual([]);
+  });
+});
+
+describe("fetchPriceHistoriesChunked", () => {
+  it("calls fetchBatch once per chunk, sequentially, and merges the results", async () => {
+    const tickers = ["A", "B", "C", "D", "E"];
+    const calls: string[][] = [];
+    const fetchBatch = vi.fn(async (chunk: string[]) => {
+      calls.push(chunk);
+      return {
+        histories: Object.fromEntries(chunk.map((t) => [t, { fetchedAt: 1 }])),
+        unavailable: [],
+      };
+    });
+
+    const result = await fetchPriceHistoriesChunked(tickers, fetchBatch, 2);
+
+    expect(calls).toEqual([["A", "B"], ["C", "D"], ["E"]]);
+    expect(Object.keys(result.histories).sort()).toEqual(["A", "B", "C", "D", "E"]);
+  });
+
+  it("merges the unavailable list across chunks", async () => {
+    const fetchBatch = vi.fn(async (chunk: string[]) => ({
+      histories: {},
+      unavailable: chunk,
+    }));
+
+    const result = await fetchPriceHistoriesChunked(["A", "B", "C"], fetchBatch, 2);
+    expect(result.unavailable.sort()).toEqual(["A", "B", "C"]);
+  });
+});
 
 describe("getLatestPriceFetchedAt", () => {
   it("returns the newest fetchedAt across the current batch", () => {
