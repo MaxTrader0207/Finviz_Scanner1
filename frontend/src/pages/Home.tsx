@@ -483,9 +483,9 @@ export default function Home() {
     <div className="market-app">
       <aside className="research-rail" aria-label="Dashboard 導覽與篩選視角">
         <div>
-          <a href="#top" className="brand-mark" aria-label="Signal Ledger 首頁">
+          <a href="#top" className="brand-mark" aria-label="Stock Scanner 首頁">
             <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" role="img" focusable="false"><title>指南針訊號圖標</title><circle cx="14" cy="14" r="12" stroke="#c08b48" strokeWidth="1.5" /><path d="M8 18L12 12L16 15L20 8" stroke="#147B72" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" /><circle cx="14" cy="14" r="1.6" fill="#147B72" /></svg>
-            <span><strong>Signal Ledger</strong><small>MARKET SCREENING</small></span>
+            <span><strong>Stock Scanner</strong><small>MARKET SCREENING</small></span>
           </a>
           <div className="rail-divider" />
           <p className="rail-section-title">研究視角</p>
@@ -582,7 +582,7 @@ export default function Home() {
           </DialogHeader>
           {stockSummary.isPending && <div className="ai-summary-loading"><Loader2 size={22} /><p>正在整理篩選快照與技術面訊號…</p></div>}
           {stockSummary.isError && <div className="ai-summary-error"><CircleAlert size={18} /><p>暫時無法產生摘要，請稍後再試。</p></div>}
-          {summary && <><div className="ai-summary-dialog-scroll"><div ref={summaryExportRef} className="ai-summary-export-document" data-role="ai-summary-export-content"><header className="ai-summary-export-title"><p>Signal Ledger · AI 快照摘要</p><h1>{summaryStock?.ticker} · {summaryStock?.company}</h1><span>{summary.dataBasis}</span></header><p className="ai-summary-export-boundary">資料邊界：不會補述未提供的財報、新聞或技術指標。</p>
+          {summary && <><div className="ai-summary-dialog-scroll"><div ref={summaryExportRef} className="ai-summary-export-document" data-role="ai-summary-export-content"><header className="ai-summary-export-title"><p>Stock Scanner · AI 快照摘要</p><h1>{summaryStock?.ticker} · {summaryStock?.company}</h1><span>{summary.dataBasis}</span></header><p className="ai-summary-export-boundary">資料邊界：不會補述未提供的財報、新聞或技術指標。</p>
             <div className="ai-summary-content">
             <section><h3>營運／篩選亮點</h3><ul>{summary.operatingHighlights.map((item) => <li key={item}>{item}</li>)}</ul></section>
             <section><h3>技術面快照</h3><ul>{summary.technicalRead.map((item) => <li key={item}>{item}</li>)}</ul></section>
