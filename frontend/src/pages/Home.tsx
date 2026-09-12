@@ -52,8 +52,10 @@ import { trpc } from "@/lib/trpc";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import html2canvas from "html2canvas";
-import { jsPDF } from "jspdf";
+// html2canvas 與 jsPDF 只有使用者實際按下「匯出 PDF」才會用到，屬於整個
+// bundle 裡數一數二肥的依賴（未壓縮前合計數百 KB）。改成在觸發匯出的當下才
+// 動態 import()，一般瀏覽網站、滑動清單完全不需要下載/解析/編譯這兩個套件，
+// 直接縮小手機裝置首次載入需要處理的 JS 量。
 import { toast } from "sonner";
 
 type SortKey = StockSortKey;
@@ -342,6 +344,7 @@ export default function Home() {
       chartPrintable.append(Object.assign(document.createElement("p"), { className: "pdf-chart-kicker", textContent: "CURRENT DETAIL CHART" }), Object.assign(document.createElement("h2"), { textContent: `${summaryStock.ticker} · ${summaryStock.company}` }), chart.cloneNode(true));
       document.body.appendChild(printable);
       document.body.appendChild(chartPrintable);
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas"), import("jspdf")]);
       const canvas = await html2canvas(printable, { backgroundColor: "#fcfaf4", scale: 2, useCORS: true, logging: false });
       const chartCanvas = await html2canvas(chartPrintable, { backgroundColor: "#fcfaf4", scale: 2, useCORS: true, logging: false });
       printable.remove();
@@ -460,6 +463,7 @@ export default function Home() {
     printable.append(disclaimer);
     document.body.appendChild(printable);
     try {
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas"), import("jspdf")]);
       const canvas = await html2canvas(printable, { backgroundColor: "#fcfaf4", scale: 2, useCORS: true, logging: false });
       const pdf = new jsPDF({ format: "a4", orientation: "portrait", unit: "pt" });
       const pageWidth = pdf.internal.pageSize.getWidth();
