@@ -6,3 +6,6 @@
 .insider-watchlist-toggle { min-width:40px; display:grid; place-items:center; color:#147b72; background:#e1eee8; border-left:1px solid #b9d8ce; transition:background-color 160ms var(--ease-out),transform 160ms var(--ease-out); }
 .insider-watchlist-toggle:hover { background:#cbe5dc; }.insider-watchlist-toggle:active { transform:scale(.97); }.insider-watchlist-toggle.is-favorite { color:#8d4535; background:#f5e5df; border-left-color:#e5c3b9; }.sale .insider-watchlist-toggle { color:#9a4c3b; background:#f5e5df; border-left-color:#e5c3b9; }.sale .insider-watchlist-toggle.is-favorite { color:#147b72; background:#e1eee8; border-left-color:#b9d8ce; }
 @media (max-width:740px) { .insider-stock-card { grid-template-columns:minmax(0,1fr) 42px; }.insider-card-primary { grid-column:1; }.insider-card-metrics { grid-column:1 / -1; }.insider-watchlist-toggle { grid-column:2; grid-row:1; min-width:42px; } }
+.insider-stock-card .stock-card-detail-row { grid-column:1 / -1; }
+.insider-detail-panel { grid-column:1 / -1; padding:12px; background:#f9faf7; border-top:1px solid #d8dcd5; }
+.insider-detail-note { margin-top:9px; color:#6e6559; font-size:9px; line-height:1.55; }
