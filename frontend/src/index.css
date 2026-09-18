@@ -46,3 +46,4 @@
 .price-refresh-status:has(+ .price-refresh-button) { overflow: hidden; text-overflow: ellipsis; }
 @keyframes price-refresh-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .price-refresh-button .is-spinning { animation: none; } }
+.sector-chart-native{display:flex;flex-direction:column;gap:9px;margin-top:14px}.sector-chart-row{display:grid;grid-template-columns:96px 1fr auto;align-items:center;gap:8px}.sector-chart-label{font-size:11px;line-height:1.25;color:#626a67;font-family:"Noto Sans TC",sans-serif;text-align:right}.sector-chart-track{height:18px}.sector-chart-bar{height:18px;border-radius:0 3px 3px 0;background:#c08b48;transition:width 220ms ease}.sector-chart-bar.is-leading{background:#147B72}.sector-chart-value{font-size:11px;color:#33444a;font-family:"Noto Sans TC",sans-serif;white-space:nowrap}
