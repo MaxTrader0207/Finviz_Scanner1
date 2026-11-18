@@ -87,8 +87,12 @@ pnpm run deploy
 之後想接 GitHub Actions 自動部署（`.github/workflows/deploy-backend.yml`
 已經寫好），去 repo **Settings → Secrets and variables → Actions** 加：
 
-- `CLOUDFLARE_API_TOKEN`
-- `CLOUDFLARE_ACCOUNT_ID`
+- `CLOUDFLARE_API_TOKEN`：Cloudflare → My Profile → API Tokens → Create Token →
+  「Edit Cloudflare Workers」範本，再多加一條 **Account → D1 → Edit** 權限
+  （workflow 會先自動套用 D1 migration 再部署）。
+- `CLOUDFLARE_ACCOUNT_ID`：Cloudflare 後台 Workers & Pages 頁面右側的 Account ID。
+
+設好之後到 Actions → Deploy backend to Cloudflare Workers → Run workflow 手動跑一次即可。
 
 ## 部署前端（GitHub Pages）
 

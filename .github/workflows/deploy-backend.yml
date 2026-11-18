@@ -31,6 +31,15 @@ jobs:
       # 新增 CLOUDFLARE_API_TOKEN 與 CLOUDFLARE_ACCOUNT_ID（見 README「部署後端」）。
       # ADMIN_TOKEN / ANTHROPIC_API_KEY / ALERT_WEBHOOK_URL 這些是 Worker 自己的
       # secrets，用 `wrangler secret put` 手動設定一次即可，不需要放進 GitHub Actions。
+      # 先套用 D1 migration（已套用過的會自動略過），再部署 Worker，
+      # 避免新程式碼上線時資料表還不存在。API token 需要包含 D1 Edit 權限。
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: backend
+          command: d1 migrations apply signal-ledger-db --remote
+
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
