@@ -37,9 +37,6 @@ export const SCREEN_SOURCES: ScreenSource[] = [
     key: "defensiveIncomeValue",
     name: "穩健收息與價值防禦型多頭",
     sourceUrl: "https://finviz.com/screener?v=111&f=fa_div_o3%2Cfa_opermargin_pos%2Cfa_payoutratio_u60%2Cfa_pb_u2%2Csh_instown_o50%2Csh_price_o10%2Cta_beta_u1%2Ctad_0_close%3A%3Aclose%3Ad&ft=4&o=price",
-    // 自訂欄位檢視：Ticker、P/B、Dividend Yield、Payout Ratio、Beta（見 parseDefensiveMetrics）
-    valuationSourceUrl:
-      "https://finviz.com/screener?v=152&f=fa_div_o3%2Cfa_opermargin_pos%2Cfa_payoutratio_u60%2Cfa_pb_u2%2Csh_instown_o50%2Csh_price_o10%2Cta_beta_u1%2Ctad_0_close%3A%3Aclose%3Ad&ft=4&o=price&c=1,11,14,15,48",
   },
   {
     key: "topGainers",

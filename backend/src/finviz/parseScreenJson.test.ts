@@ -84,3 +84,24 @@ describe("parseDefensiveMetrics", () => {
     ]));
   });
 });
+
+import { toMetricsViewUrl } from "./parseScreen";
+
+describe("每個視角都帶上卡片指標", () => {
+  it("把 Overview 網址轉成自訂欄位檢視，其他條件不變", () => {
+    const url = new URL(toMetricsViewUrl("https://finviz.com/screener?v=111&f=cap_midover,fa_epsqoq_pos&o=price"));
+    expect(url.searchParams.get("v")).toBe("152");
+    expect(url.searchParams.get("c")).toBe("1,2,3,4,5,6,7,11,14,15,48,65,66,67");
+    expect(url.searchParams.get("f")).toBe("cap_midover,fa_epsqoq_pos");
+    expect(url.searchParams.get("o")).toBe("price");
+  });
+
+  it("解析殖利率、配息率、Beta（沒配息的股票不會有殖利率）", () => {
+    const TME = { text: { ticker: "TME", company: "Tencent Music", sector: "Communication Services", industry: "Internet", country: "China" }, numbers: { marketCap: 5972.8, PE: 11.35, PB: 1.2012, dividendYield: 1.93548, payoutRatio: 23.21, beta: 0.69925, price: 9.47, change: 6.64, volume: 13730900 } };
+    const SLS = { text: { ticker: "SLS", company: "SELLAS", sector: "Healthcare", industry: "Biotechnology", country: "USA" }, numbers: { marketCap: 3903.9, PB: 29.57, beta: 2.758, price: 19.15, change: 156.36, volume: 120291755 } };
+    const [tme, sls] = parseFinvizScreenerHtml(page([TME, SLS])).stocks;
+    expect(tme).toMatchObject({ priceToBook: "1.20", dividendYield: "1.94%", payoutRatio: "23.21%", beta: "0.70" });
+    expect(sls).toMatchObject({ priceToBook: "29.57", beta: "2.76" });
+    expect(sls!.dividendYield).toBeUndefined();
+  });
+});

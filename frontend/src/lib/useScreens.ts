@@ -68,25 +68,21 @@ export function useScreens(): UseScreensResult {
         return { ...template, snapshotAt: formatSnapshotAt(snapshot.fetchedAt) };
       }
 
-      let stocks = snapshot.stocks as Stock[];
-      if (template.key === "defensiveIncomeValue") {
-        // 後端這個視角改用 Finviz 的 Valuation 檢視抓 P/B、stockanalysis.com
-        // 補殖利率/配息率/Beta，這三個都是扁平欄位；UI 原本是從 defensiveMetrics
-        // 這個巢狀物件讀取，這裡轉換一下形狀。個別股票若查無資料則顯示「—」。
-        stocks = stocks.map((stock) => {
-          const raw = stock as Stock & { priceToBook?: string; dividendYield?: string; payoutRatio?: string; beta?: string };
-          return {
-            ...stock,
-            defensiveMetrics: {
-              dividendYield: raw.dividendYield ?? "—",
-              payoutRatio: raw.payoutRatio ?? "—",
-              priceToBook: raw.priceToBook ?? "—",
-              beta: raw.beta ?? "—",
-              snapshotSource: "Finviz",
-            },
-          };
-        });
-      }
+      // 後端把 P/B、殖利率、配息率、Beta 存成扁平欄位（每個視角都有）；股票卡片是從
+      // defensiveMetrics 這個巢狀物件讀取，這裡轉換一下形狀。查無資料的欄位顯示「—」。
+      const stocks = (snapshot.stocks as Stock[]).map((stock): Stock => {
+        const raw = stock as Stock & { priceToBook?: string; dividendYield?: string; payoutRatio?: string; beta?: string };
+        return {
+          ...stock,
+          defensiveMetrics: {
+            dividendYield: raw.dividendYield ?? "—",
+            payoutRatio: raw.payoutRatio ?? "—",
+            priceToBook: raw.priceToBook ?? "—",
+            beta: raw.beta ?? "—",
+            snapshotSource: "Finviz" as const,
+          },
+        };
+      });
 
       return {
         ...template,

@@ -1,4 +1,4 @@
-import { parseDefensiveMetrics, parseFinvizScreenerHtml, type ScrapedStock } from "./parseScreen";
+import { parseDefensiveMetrics, parseFinvizScreenerHtml, toMetricsViewUrl, type ScrapedStock } from "./parseScreen";
 import { parseFinvizInsiderTradingHtml, type ScrapedInsiderTransaction } from "./parseInsiderTrading";
 import { SCREEN_SOURCES, INSIDER_TRADING_SOURCE_URLS } from "./screenSources";
 
@@ -29,8 +29,13 @@ async function fetchHtml(url: string): Promise<string> {
 
 async function fetchOneScreen(screenKey: string, screenName: string, sourceUrl: string, valuationSourceUrl: string | undefined): Promise<ScreenFetchResult> {
   try {
-    const html = await fetchHtml(sourceUrl);
-    const { stocks, skippedRowCount } = parseFinvizScreenerHtml(html);
+    // 先用帶指標欄位的自訂檢視（一次拿到 P/B、殖利率、配息率、Beta）；萬一 Finviz 不認得
+    // 這組欄位代號而解析不到資料，再退回原本的 Overview 網址，至少名單不會斷。
+    let { stocks, skippedRowCount } = parseFinvizScreenerHtml(await fetchHtml(toMetricsViewUrl(sourceUrl)));
+    if (stocks.length === 0) {
+      await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_REQUESTS_MS));
+      ({ stocks, skippedRowCount } = parseFinvizScreenerHtml(await fetchHtml(sourceUrl)));
+    }
 
     if (stocks.length === 0 && !SCREENS_WHERE_ZERO_RESULTS_ARE_EXPECTED.has(screenKey)) {
       throw new Error(`Parsed 0 stocks (skipped ${skippedRowCount} rows) — selector likely stale`);

@@ -27,6 +27,10 @@ export const scrapedStockSchema = z.object({
   volume: z.number().int().nonnegative(),
   /** 只有用 Valuation 檢視（v=121）抓取的視角才會有這個欄位，例如 defensiveIncomeValue。 */
   priceToBook: z.string().min(1).optional(),
+  /** 以下三個欄位來自自訂欄位檢視（見 SCREEN_METRIC_COLUMNS），沒配息的股票不會有 dividendYield。 */
+  dividendYield: z.string().min(1).optional(),
+  payoutRatio: z.string().min(1).optional(),
+  beta: z.string().min(1).optional(),
 });
 
 export type ScrapedStock = z.infer<typeof scrapedStockSchema>;
@@ -129,6 +133,33 @@ export function formatMarketCapMillions(millions: number | null): string {
   return millions >= 1000 ? `${(millions / 1000).toFixed(2)}B` : `${millions.toFixed(2)}M`;
 }
 
+function metricFields(numbers: Record<string, unknown>) {
+  const dividend = asNumber(numbers.dividendYield);
+  const payout = asNumber(numbers.payoutRatio);
+  const beta = asNumber(numbers.beta);
+  return {
+    ...(dividend !== null ? { dividendYield: `${dividend.toFixed(2)}%` } : {}),
+    ...(payout !== null ? { payoutRatio: `${payout.toFixed(2)}%` } : {}),
+    ...(beta !== null ? { beta: beta.toFixed(2) } : {}),
+  };
+}
+
+/**
+ * 每個視角都改用 Finviz 自訂欄位檢視（v=152）抓取：跟 Overview 同樣的欄位，再加上 P/B、
+ * 殖利率、配息率、Beta，一個請求就拿到股票卡片要的五項指標。欄位代號 2026-11-18 對照真實頁面確認：
+ * 1 Ticker / 2 Company / 3 Sector / 4 Industry / 5 Country / 6 Market Cap / 7 P/E / 11 P/B /
+ * 14 Dividend Yield / 15 Payout Ratio / 48 Beta / 65 Price / 66 Change / 67 Volume
+ */
+export const SCREEN_METRIC_COLUMNS = "1,2,3,4,5,6,7,11,14,15,48,65,66,67";
+
+/** 把視角的 Overview 網址（v=111）轉成帶指標欄位的自訂檢視網址；sourceUrl 本身維持原樣給使用者點。 */
+export function toMetricsViewUrl(sourceUrl: string): string {
+  const url = new URL(sourceUrl);
+  url.searchParams.set("v", "152");
+  url.searchParams.set("c", SCREEN_METRIC_COLUMNS);
+  return url.toString();
+}
+
 function parseJsonRows(rows: FinvizJsonRow[]): ParseResult {
   const stocks: ScrapedStock[] = [];
   let skippedRowCount = 0;
@@ -154,6 +185,7 @@ function parseJsonRows(rows: FinvizJsonRow[]): ParseResult {
       change: asNumber(numbers.change) ?? 0,
       volume: Math.round(asNumber(numbers.volume) ?? 0),
       ...(priceToBook !== null ? { priceToBook: priceToBook.toFixed(2) } : {}),
+      ...metricFields(numbers),
     };
     const parsed = scrapedStockSchema.safeParse(candidate);
     if (parsed.success) {
