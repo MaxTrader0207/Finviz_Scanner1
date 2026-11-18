@@ -71,3 +71,19 @@ button.performance-row:hover{background:#f1f3ed}
   .performance-cell::before{content:attr(data-horizon);grid-row:1 / 4;color:#67716f;font-size:10px;font-weight:900}
   .universe-header{flex-wrap:wrap}
 }
+
+/* 側欄是 sticky 100vh：筆電螢幕高度不夠時，下方的「分析工具」會被擠出畫面又無法捲動。
+   桌機版讓側欄自己可以捲動，矮螢幕再把項目間距收緊，讓全部項目盡量一次看得到。 */
+@media (min-width: 741px) {
+  .research-rail { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(246,240,229,.22) transparent; }
+}
+@media (min-width: 741px) and (max-height: 920px) {
+  .research-rail { padding-top: 20px; padding-bottom: 16px; }
+  .research-rail .rail-divider { margin: 16px 0 14px; }
+  .research-rail .rail-section-title { margin-bottom: 6px; }
+  .research-rail .screen-nav { gap: 2px; }
+  .research-rail .screen-nav-item { padding: 6px 8px; }
+  .research-rail .screen-nav-item small { margin-top: 1px; }
+  .research-rail .rail-tools { margin-top: 12px; }
+  .research-rail .rail-source p { display: none; }
+}
