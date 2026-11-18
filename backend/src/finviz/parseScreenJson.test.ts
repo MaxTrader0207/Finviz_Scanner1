@@ -71,3 +71,16 @@ describe("formatMarketCapMillions", () => {
     expect(formatMarketCapMillions(null)).toBe("-");
   });
 });
+
+import { parseDefensiveMetrics } from "./parseScreen";
+
+describe("parseDefensiveMetrics", () => {
+  it("讀自訂檢視的 P/B、殖利率、配息率、Beta", () => {
+    const GPK = { text: { ticker: "GPK" }, numbers: { PB: 0.9715346328775499, dividendYield: 4.183554951038072, payoutRatio: 29.71, beta: 0.5961256965156342, price: 10.52 } };
+    const NOBETA = { text: { ticker: "XYZ" }, numbers: { PB: 1.5, price: 20 } };
+    expect(parseDefensiveMetrics(page([GPK, NOBETA]))).toEqual(new Map([
+      ["GPK", { priceToBook: "0.97", dividendYield: "4.18%", payoutRatio: "29.71%", beta: "0.60" }],
+      ["XYZ", { priceToBook: "1.50" }],
+    ]));
+  });
+});

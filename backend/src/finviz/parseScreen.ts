@@ -242,6 +242,37 @@ const VALUATION_PRICE_TO_BOOK_INDEX = 7;
  * scrapedStockSchema，所以獨立成一個只抓「代碼 -> P/B」對照表的函式。呼叫端
  * （fetchScreen.ts）會用這個表，依代碼把 P/B 併回 Overview 檢視抓到的完整資料。
  */
+export type DefensiveMetrics = { priceToBook?: string; dividendYield?: string; payoutRatio?: string; beta?: string };
+
+/**
+ * 防禦型視角的補充指標：用 Finviz 自訂欄位檢視（v=152&c=1,11,14,15,48 → Ticker、P/B、
+ * Dividend Yield、Payout Ratio、Beta）一次取得。2026-11-18 對照真實頁面確認 JSON 欄位名稱
+ * 為 PB / dividendYield / payoutRatio / beta（後兩個百分比欄位是百分比數值，例如 4.18 = 4.18%）。
+ */
+export function parseDefensiveMetrics(html: string): Map<string, DefensiveMetrics> {
+  const result = new Map<string, DefensiveMetrics>();
+  const jsonRows = extractScreenerJsonRows(html);
+  if (!jsonRows) {
+    for (const [ticker, priceToBook] of parseValuationPriceToBook(html)) result.set(ticker, { priceToBook });
+    return result;
+  }
+  for (const row of jsonRows) {
+    const ticker = asText(row.text?.ticker);
+    if (!ticker || result.has(ticker)) continue;
+    const pb = asNumber(row.numbers?.PB);
+    const dividend = asNumber(row.numbers?.dividendYield);
+    const payout = asNumber(row.numbers?.payoutRatio);
+    const beta = asNumber(row.numbers?.beta);
+    result.set(ticker, {
+      ...(pb !== null ? { priceToBook: pb.toFixed(2) } : {}),
+      ...(dividend !== null ? { dividendYield: `${dividend.toFixed(2)}%` } : {}),
+      ...(payout !== null ? { payoutRatio: `${payout.toFixed(2)}%` } : {}),
+      ...(beta !== null ? { beta: beta.toFixed(2) } : {}),
+    });
+  }
+  return result;
+}
+
 export function parseValuationPriceToBook(html: string): Map<string, string> {
   const jsonRows = extractScreenerJsonRows(html);
   if (jsonRows) {

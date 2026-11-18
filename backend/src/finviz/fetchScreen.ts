@@ -1,4 +1,4 @@
-import { parseFinvizScreenerHtml, parseValuationPriceToBook, type ScrapedStock } from "./parseScreen";
+import { parseDefensiveMetrics, parseFinvizScreenerHtml, type ScrapedStock } from "./parseScreen";
 import { parseFinvizInsiderTradingHtml, type ScrapedInsiderTransaction } from "./parseInsiderTrading";
 import { SCREEN_SOURCES, INSIDER_TRADING_SOURCE_URLS } from "./screenSources";
 
@@ -42,12 +42,8 @@ async function fetchOneScreen(screenKey: string, screenName: string, sourceUrl: 
       // 這一步失敗不影響主要資料——只是這個視角會缺 P/B，不會讓整個視角判定失敗。
       try {
         await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_REQUESTS_MS));
-        const valuationHtml = await fetchHtml(valuationSourceUrl);
-        const priceToBookByTicker = parseValuationPriceToBook(valuationHtml);
-        enrichedStocks = stocks.map((stock) => {
-          const priceToBook = priceToBookByTicker.get(stock.ticker);
-          return priceToBook ? { ...stock, priceToBook } : stock;
-        });
+        const metricsByTicker = parseDefensiveMetrics(await fetchHtml(valuationSourceUrl));
+        enrichedStocks = stocks.map((stock) => ({ ...stock, ...(metricsByTicker.get(stock.ticker) ?? {}) }));
       } catch (error) {
         console.warn(`[Finviz Sync] Unable to enrich ${screenKey} with P/B from Valuation view:`, error);
       }

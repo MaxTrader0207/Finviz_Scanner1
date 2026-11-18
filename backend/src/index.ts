@@ -71,9 +71,14 @@ export default {
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     if (event.cron === HEALTH_CHECK_CRON) {
       ctx.waitUntil(
-        runHealthCheck(getDb(env.DB), alertChannelsFromEnv(env), env.SITE_URL)
-          .then((result) => console.log("[Health]", JSON.stringify(result)))
-          .catch((error) => console.error("[Health] check failed:", error))
+        (async () => {
+          const db = getDb(env.DB);
+          const health = await runHealthCheck(db, alertChannelsFromEnv(env), env.SITE_URL);
+          console.log("[Health]", JSON.stringify(health));
+          // 第二輪補報酬（每次呼叫有獨立的子請求額度），讓回補進度加倍。
+          const returns = await updateReturns(db);
+          console.log("[Performance]", JSON.stringify(returns));
+        })().catch((error) => console.error("[Health] check failed:", error))
       );
       return;
     }

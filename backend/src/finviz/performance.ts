@@ -22,7 +22,7 @@ const MILESTONE_CALENDAR_DAYS: Record<Horizon, number> = { 1: 1, 5: 7, 20: 28 };
 /** 超過這麼多日曆天還補不到 20 日報酬（下市、改代碼、Yahoo 查無），就放棄追蹤。 */
 const GIVE_UP_CALENDAR_DAYS = 45;
 /** 每次執行最多查幾檔股票的日線（Workers 子請求上限與 Yahoo 節流的保守值）。 */
-export const MAX_TICKERS_PER_RUN = 150;
+export const MAX_TICKERS_PER_RUN = 400;
 const INSERT_CHUNK = 20; // D1 每個查詢最多 100 個綁定參數，每列 4 個欄位
 const YAHOO_CHART_ENDPOINT = "https://query1.finance.yahoo.com/v8/finance/chart";
 const DAY_MS = 24 * 60 * 60 * 1000;

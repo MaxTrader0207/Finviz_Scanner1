@@ -9,7 +9,7 @@ compatibility_flags = ["nodejs_compat"]
 # 第二個（02:00 UTC = 台灣 10:00）是健康檢查：超過 26 小時沒有成功同步、某個視角一直抓不到、
 # 或同步鎖卡住時，發警示到 Discord/LINE。
 [triggers]
-crons = ["0 22 * * *", "0 2 * * *", "50 2 * * *"]  # TEMP: 一次性手動同步，跑完即移除
+crons = ["0 22 * * *", "0 2 * * *", "20 3 * * *"]  # TEMP: 一次性手動同步，跑完即移除
 
 [[d1_databases]]
 binding = "DB"
