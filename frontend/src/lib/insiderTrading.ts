@@ -10,6 +10,10 @@ export type InsiderTransaction = {
   cost: number;
   shares: number;
   value: number;
+  /** 即時快照由後端用 Finviz screener 補上；靜態展示資料沒有這些欄位。 */
+  company?: string;
+  sector?: string;
+  industry?: string;
 };
 
 export const INSIDER_SNAPSHOT_AT = "2026.08.22 · 03:50–03:52 ET";
@@ -102,8 +106,9 @@ const INSIDER_SECTOR_BY_TICKER: Record<string, string> = {
   AEON: "Healthcare", AMR: "Basic Materials", ANET: "Technology", ARDX: "Healthcare", ARLP: "Energy", AUGO: "Basic Materials", BAC: "Financial", BHRB: "Financial", BRLT: "Consumer Cyclical", CBLL: "Healthcare", COE: "Consumer Defensive", DE: "Industrials", DLHC: "Industrials", DXST: "Industrials", ET: "Energy", FGBI: "Financial", FCNCA: "Financial", GDRX: "Healthcare", GWRS: "Utilities", IAUX: "Basic Materials", ILMN: "Healthcare", ISRG: "Healthcare", LITE: "Technology", LOOP: "Basic Materials", LZ: "Industrials", MANE: "Healthcare", MDRR: "Real Estate", MRCY: "Industrials", PDYN: "Technology", PTON: "Consumer Cyclical", QCOM: "Technology", ROK: "Industrials", RSG: "Industrials", RVMD: "Healthcare", STX: "Technology", TPL: "Energy", YORW: "Utilities", ZNTL: "Healthcare",
 };
 
-export function getInsiderTickerSector(ticker: string): string {
-  return INSIDER_SECTOR_BY_TICKER[ticker.trim().toUpperCase()] ?? "未分類";
+export function getInsiderTickerSector(ticker: string, transactions: InsiderTransaction[] = []): string {
+  const normalized = ticker.trim().toUpperCase();
+  return transactions.find((transaction) => transaction.ticker === normalized && transaction.sector)?.sector ?? INSIDER_SECTOR_BY_TICKER[normalized] ?? "未分類";
 }
 
 export type InsiderSectorComposition = { sector: string; count: number; percentage: number };
@@ -112,7 +117,7 @@ export function getInsiderSectorComposition(transactions: InsiderTransaction[]):
   const uniqueTickers = Array.from(new Set(transactions.map((transaction) => transaction.ticker)));
   const sectorCounts = new Map<string, number>();
   uniqueTickers.forEach((ticker) => {
-    const sector = getInsiderTickerSector(ticker);
+    const sector = getInsiderTickerSector(ticker, transactions);
     sectorCounts.set(sector, (sectorCounts.get(sector) ?? 0) + 1);
   });
   return Array.from(sectorCounts.entries()).map(([sector, count]) => ({ sector, count, percentage: uniqueTickers.length ? (count / uniqueTickers.length) * 100 : 0 }));

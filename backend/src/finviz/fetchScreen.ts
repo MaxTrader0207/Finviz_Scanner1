@@ -12,8 +12,10 @@ export type ScreenFetchResult =
   | { screenKey: string; screenName: string; sourceUrl: string; status: "ok"; stocks: ScrapedStock[]; skippedRowCount: number }
   | { screenKey: string; screenName: string; sourceUrl: string; status: "error"; error: string };
 
+export type EnrichedInsiderTransaction = ScrapedInsiderTransaction & { company?: string; sector?: string; industry?: string };
+
 export type InsiderFetchResult =
-  | { status: "ok"; buy: ScrapedInsiderTransaction[]; sale: ScrapedInsiderTransaction[] }
+  | { status: "ok"; buy: EnrichedInsiderTransaction[]; sale: EnrichedInsiderTransaction[] }
   | { status: "error"; error: string };
 
 async function fetchHtml(url: string): Promise<string> {
@@ -57,6 +59,36 @@ async function fetchOneScreen(screenKey: string, screenName: string, sourceUrl: 
   }
 }
 
+/** Finviz screener 的 t= 參數一次查一組代碼，Overview 檢視每頁 20 列。 */
+export const PROFILE_CHUNK_SIZE = 20;
+
+export function buildTickerProfileUrls(tickers: string[]): string[] {
+  const unique = Array.from(new Set(tickers)).sort();
+  const urls: string[] = [];
+  for (let i = 0; i < unique.length; i += PROFILE_CHUNK_SIZE) {
+    urls.push(`https://finviz.com/screener?v=111&t=${unique.slice(i, i + PROFILE_CHUNK_SIZE).join(",")}`);
+  }
+  return urls;
+}
+
+/**
+ * 內部人交易頁沒有公司名稱與產業，用 screener 的代碼查詢批次補上，讓前端的產業構成圖
+ * 不會全部落在「未分類」。任何一批失敗都只是少一些產業資料，不影響內部人快照本身。
+ */
+async function fetchTickerProfiles(tickers: string[]): Promise<Map<string, { company: string; sector: string; industry: string }>> {
+  const profiles = new Map<string, { company: string; sector: string; industry: string }>();
+  for (const url of buildTickerProfileUrls(tickers)) {
+    await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_REQUESTS_MS));
+    try {
+      const { stocks } = parseFinvizScreenerHtml(await fetchHtml(url));
+      for (const stock of stocks) profiles.set(stock.ticker, { company: stock.company, sector: stock.sector, industry: stock.industry });
+    } catch (error) {
+      console.warn("[Finviz Sync] Unable to fetch insider ticker profiles:", error);
+    }
+  }
+  return profiles;
+}
+
 async function fetchInsiderTrading(): Promise<InsiderFetchResult> {
   try {
     const [buyHtml, saleHtml] = await Promise.all([
@@ -68,7 +100,12 @@ async function fetchInsiderTrading(): Promise<InsiderFetchResult> {
     if (buy.transactions.length === 0 && sale.transactions.length === 0) {
       throw new Error("Parsed 0 insider transactions — selector likely stale");
     }
-    return { status: "ok", buy: buy.transactions, sale: sale.transactions };
+    const profiles = await fetchTickerProfiles([...buy.transactions, ...sale.transactions].map((transaction) => transaction.ticker));
+    const enrich = (transaction: ScrapedInsiderTransaction): EnrichedInsiderTransaction => {
+      const profile = profiles.get(transaction.ticker);
+      return profile ? { ...transaction, ...profile } : transaction;
+    };
+    return { status: "ok", buy: buy.transactions.map(enrich), sale: sale.transactions.map(enrich) };
   } catch (error) {
     return { status: "error", error: error instanceof Error ? error.message : String(error) };
   }
