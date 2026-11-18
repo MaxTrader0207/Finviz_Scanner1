@@ -94,7 +94,82 @@ export type ScreenerColumnLayout = {
   volume: number;
 };
 
+/**
+ * 2026-10 中 Finviz 把 screener 改成前端渲染：HTML 裡已經沒有 <table>，資料改放在
+ * `<script type="application/json" data-ssr-props="ssr-island-N">` 的 JSON 裡：
+ *   { selectedColumns: [...], data: { rows: [{ text: {ticker, company, sector, ...},
+ *     numbers: {marketCap(百萬美元), PE, price, change(%), volume, PB, ...} }], totalCount, firstRow, pageSize } }
+ * 這是 2026-11-18 對照真實頁面確認的結構。找不到這段 JSON 時回傳 null，呼叫端再退回舊的表格解析。
+ */
+type FinvizJsonRow = { text?: Record<string, unknown>; numbers?: Record<string, unknown> };
+
+export function extractScreenerJsonRows(html: string): FinvizJsonRow[] | null {
+  const $ = cheerio.load(html);
+  let rows: FinvizJsonRow[] | null = null;
+  $('script[type="application/json"]').each((_, el) => {
+    if (rows) return;
+    const raw = $(el).text();
+    if (!raw.includes('"rows"')) return;
+    try {
+      const parsed = JSON.parse(raw) as { data?: { rows?: unknown } };
+      if (Array.isArray(parsed?.data?.rows)) rows = parsed.data.rows as FinvizJsonRow[];
+    } catch {
+      // 不是我們要的那段 JSON，繼續找下一個
+    }
+  });
+  return rows;
+}
+
+const asNumber = (value: unknown): number | null => (typeof value === "number" && Number.isFinite(value) ? value : null);
+const asText = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
+
+/** 百萬美元 -> "5.97B" / "466.06M"，跟舊表格的顯示格式一致。 */
+export function formatMarketCapMillions(millions: number | null): string {
+  if (millions === null || millions <= 0) return "-";
+  return millions >= 1000 ? `${(millions / 1000).toFixed(2)}B` : `${millions.toFixed(2)}M`;
+}
+
+function parseJsonRows(rows: FinvizJsonRow[]): ParseResult {
+  const stocks: ScrapedStock[] = [];
+  let skippedRowCount = 0;
+  const seen = new Set<string>();
+  for (const row of rows) {
+    const text = row.text ?? {};
+    const numbers = row.numbers ?? {};
+    const ticker = asText(text.ticker);
+    if (!ticker || seen.has(ticker)) continue;
+    const marketCapMillions = asNumber(numbers.marketCap);
+    const pe = asNumber(numbers.PE);
+    const priceToBook = asNumber(numbers.PB);
+    const candidate = {
+      ticker,
+      company: asText(text.company),
+      sector: asText(text.sector) || "-",
+      industry: asText(text.industry) || "-",
+      country: asText(text.country) || "-",
+      marketCapLabel: formatMarketCapMillions(marketCapMillions),
+      marketCapBn: marketCapMillions !== null ? marketCapMillions / 1000 : 0,
+      pe: pe !== null ? pe.toFixed(2) : "-",
+      price: asNumber(numbers.price) ?? Number.NaN,
+      change: asNumber(numbers.change) ?? 0,
+      volume: Math.round(asNumber(numbers.volume) ?? 0),
+      ...(priceToBook !== null ? { priceToBook: priceToBook.toFixed(2) } : {}),
+    };
+    const parsed = scrapedStockSchema.safeParse(candidate);
+    if (parsed.success) {
+      stocks.push(parsed.data);
+      seen.add(ticker);
+    } else {
+      skippedRowCount += 1;
+    }
+  }
+  return { stocks, skippedRowCount };
+}
+
 export function parseFinvizScreenerHtml(html: string, layout: ScreenerColumnLayout = OVERVIEW_COLUMN_INDEX): ParseResult {
+  const jsonRows = extractScreenerJsonRows(html);
+  if (jsonRows) return parseJsonRows(jsonRows);
+
   const $ = cheerio.load(html);
   const stocks: ScrapedStock[] = [];
   let skippedRowCount = 0;
@@ -168,6 +243,17 @@ const VALUATION_PRICE_TO_BOOK_INDEX = 7;
  * （fetchScreen.ts）會用這個表，依代碼把 P/B 併回 Overview 檢視抓到的完整資料。
  */
 export function parseValuationPriceToBook(html: string): Map<string, string> {
+  const jsonRows = extractScreenerJsonRows(html);
+  if (jsonRows) {
+    const fromJson = new Map<string, string>();
+    for (const row of jsonRows) {
+      const ticker = asText(row.text?.ticker);
+      const priceToBook = asNumber(row.numbers?.PB);
+      if (ticker && priceToBook !== null && !fromJson.has(ticker)) fromJson.set(ticker, priceToBook.toFixed(2));
+    }
+    return fromJson;
+  }
+
   const $ = cheerio.load(html);
   const result = new Map<string, string>();
   const rowSelectors = ["table.screener_table tbody tr", "tr.styled-row", "table[bgcolor] tr"];
