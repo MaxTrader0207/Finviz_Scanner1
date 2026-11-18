@@ -31,7 +31,7 @@ const trpcClient = trpc.createClient({
     // 後端比前端晚部署、或這支 API 出錯時，只會讓那一區塊不顯示，
     // 不會連帶讓整個批次失敗、把篩選結果打回展示用的靜態資料。
     splitLink({
-      condition: (op) => op.path === "finvizSync.getScreenHistory",
+      condition: (op) => op.path === "finvizSync.getScreenHistory" || op.path.startsWith("performance."),
       true: httpLink({ url: `${apiBaseUrl ?? ""}/trpc`, transformer: superjson }),
       false: httpBatchLink({
         url: `${apiBaseUrl ?? ""}/trpc`,
