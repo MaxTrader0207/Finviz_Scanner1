@@ -8,6 +8,7 @@ import "../insiderTrading.css";
 import "../priceTrend.css";
 import "../watchlist.css";
 import "../zeroResults.css";
+import "../listingChanges.css";
 import {
   Activity,
   ArrowUpDown,
@@ -38,6 +39,7 @@ import {
 // 套件從打包結果裡拿掉。
 import { type ScreenKey, type Stock } from "@/lib/screenerData";
 import { useScreens } from "@/lib/useScreens";
+import { formatSessionDate, getListingBadge, useScreenHistories, type ListingBadge, type ScreenHistory } from "@/lib/screenHistory";
 import { calculateMacd, calculateRsi, calculateSimpleMovingAverage, findLatestRsiExtremeEntry, getAllMovingAveragePeriods, getRsiZone, getVisibleMovingAveragePeriods, MOVING_AVERAGE_PRESENTATIONS, MOVING_AVERAGE_VISIBILITY_STORAGE_KEY, parseVisibleMovingAveragePeriods, type MovingAveragePeriod, RSI_REFERENCE_BANDS, summarizeLatestMovingAverage } from "@/lib/movingAverage";
 import { buildDefaultPdfFileName, buildWatchlistPdfFileName, sanitizePdfFileName } from "@/lib/pdfExport";
 import { buildWatchlistCsv, buildWatchlistCsvFileName } from "@/lib/watchlistExport";
@@ -142,6 +144,8 @@ function InsiderTradingView({ sectorData, sectorAxisMax, sectorDirection, onTogg
 
 export default function Home() {
   const { screens, isLive, lastSyncedAt, staleScreenKeys } = useScreens();
+  const screenHistories = useScreenHistories();
+  const [onlyNewListings, setOnlyNewListings] = useState(false);
   const [activeScreen, setActiveScreen] = useState<ScreenKey>(() => {
     const storedScreen = window.localStorage.getItem("signal-ledger-active-screen");
     return screens.some((item) => item.key === storedScreen) ? storedScreen as ScreenKey : "qualityMomentum";
@@ -206,6 +210,11 @@ export default function Home() {
   const isDefensiveScreen = screen.key === "defensiveIncomeValue";
   const isInsiderScreen = screen.key === "insiderTrading";
   const isTopLosersScreen = screen.key === "topLosers";
+  const activeHistory = isInsiderScreen ? undefined : screenHistories[screen.key];
+  const hasListingComparison = Boolean(activeHistory?.previousSessionDate);
+  const isNewOnlyFilterActive = onlyNewListings && hasListingComparison;
+  // 先算好整張 Map，讓每列拿到穩定的物件參考，StockRow 的 memo 才不會每次都失效。
+  const listingBadges = useMemo(() => new Map(screen.stocks.map((stock) => [stock.ticker, getListingBadge(activeHistory, stock.ticker)] as const)), [activeHistory, screen.stocks]);
   const sectors = useMemo(() => ["全部產業", ...Array.from(new Set(screen.stocks.map((stock) => stock.sector)))], [screen]);
 
   const visibleStocks = useMemo(() => {
@@ -213,10 +222,11 @@ export default function Home() {
     const filteredStocks = screen.stocks.filter((stock) => {
         const matchesQuery = !normalizedQuery || [stock.ticker, stock.company, stock.industry, stock.country].some((value) => value.toLowerCase().includes(normalizedQuery));
         const matchesSector = sector === "全部產業" || stock.sector === sector;
-        return matchesQuery && matchesSector;
+        const matchesNew = !isNewOnlyFilterActive || Boolean(activeHistory?.newTickers.includes(stock.ticker));
+        return matchesQuery && matchesSector && matchesNew;
       });
     return sortStocks(filteredStocks, sortKey, sortDirection);
-  }, [query, screen, sector, sortDirection, sortKey]);
+  }, [activeHistory, isNewOnlyFilterActive, query, screen, sector, sortDirection, sortKey]);
   const rankedStocks = useMemo(() => rankStocks(visibleStocks), [visibleStocks]);
   const defensivePageTotal = useMemo(() => defensivePageCount(rankedStocks.length), [rankedStocks.length]);
   const activeDefensivePage = Math.min(defensivePage, defensivePageTotal);
@@ -288,6 +298,7 @@ export default function Home() {
     setExpandedTicker(null);
     setQuery("");
     setSector("全部產業");
+    setOnlyNewListings(false);
     setSortKey("change");
     setSortDirection(key === "topLosers" ? "asc" : "desc");
     setDefensivePage(1);
@@ -570,6 +581,8 @@ export default function Home() {
           <StatCard label="合計市值" value={stats.stockCount ? formatMarketCap(stats.totalMarketCap) : "—"} note={stats.stockCount ? screen.loadedScope ?? "依來源顯示市值加總" : "本次快照沒有符合標的"} accent="teal" />
         </section>
 
+        {activeHistory?.sessionDate && <ListingChangesPanel history={activeHistory} onlyNew={isNewOnlyFilterActive} onToggleOnlyNew={() => { setOnlyNewListings((value) => !value); setDefensivePage(1); }} />}
+
         <section className="analysis-grid">
           <article className="filter-dossier">
             <div className="section-head"><div><p className="eyebrow">SCREEN CONFIGURATION</p><h2>篩選條件備忘</h2></div><SlidersHorizontal size={20} /></div>
@@ -598,7 +611,7 @@ export default function Home() {
               <label className="mobile-sort-select"><select value={sortKey} onChange={(event) => { setSortKey(event.target.value as SortKey); setSortDirection("desc"); }} aria-label="排序欄位"><option value="change">漲跌幅</option><option value="price">股價</option><option value="pe">本益比</option><option value="marketCapBn">市值</option></select><ChevronDown size={15} /></label>
               <button type="button" className="mobile-sort-direction" onClick={() => setSortDirection((direction) => direction === "asc" ? "desc" : "asc")} aria-label={`目前${sortDirection === "desc" ? "由高至低" : "由低至高"}，點擊切換排序方向`}><ArrowUpDown size={14} /><span>{sortDirection === "desc" ? "高→低" : "低→高"}</span></button>
             </div>
-          </div>{isDefensiveScreen && <div className="defensive-sector-quick-filter" role="group" aria-label="防禦型產業快速篩選"><span>防禦產業</span><button type="button" className={sector === "全部產業" ? "active" : ""} onClick={() => setSector("全部產業")}>全部</button>{DEFENSIVE_QUICK_SECTORS.map((option) => <button key={option.value} type="button" className={sector === option.value ? "active" : ""} onClick={() => setSector(option.value)}>{option.label}</button>)}</div>}<div className="table-shell"><table><thead><tr><th>排名</th><th><SortableHeading label="代碼" column="ticker" active={sortKey} direction={sortDirection} onSort={handleSort} /></th><th>公司／產業</th><th><SortableHeading label="市值" column="marketCapBn" active={sortKey} direction={sortDirection} onSort={handleSort} /></th><th><SortableHeading label="本益比" column="pe" active={sortKey} direction={sortDirection} onSort={handleSort} /></th><th><SortableHeading label="股價" column="price" active={sortKey} direction={sortDirection} onSort={handleSort} /></th><th><SortableHeading label="漲跌幅" column="change" active={sortKey} direction={sortDirection} onSort={handleSort} /></th><th><SortableHeading label="成交量" column="volume" active={sortKey} direction={sortDirection} onSort={handleSort} /></th><th>AI 摘要</th><th /></tr></thead><tbody>{renderedRankedStocks.map(({ stock, rank }) => <StockRow key={stock.ticker} stock={stock} rank={rank} history={miniPriceHistories.data?.histories[stock.ticker]} currentPrice={currentPrices.get(stock.ticker)} isHistoryLoading={miniPriceHistories.isLoading} isExpanded={expandedTicker === stock.ticker} isFavorite={watchlistTickers.includes(stock.ticker)} onToggle={handleToggleExpand} onToggleWatchlist={handleToggleWatchlistRow} onSummary={requestSummary} />)}</tbody></table>{visibleStocks.length === 0 && <div className="empty-state">此搜尋或產業條件下沒有符合結果。</div>}</div>{isDefensiveScreen && visibleStocks.length > 0 && <nav className="defensive-pagination" aria-label="防禦型股票清單分頁"><p>第 {activeDefensivePage} / {defensivePageTotal} 頁 · 每頁 {DEFENSIVE_PAGE_SIZE} 檔迷你走勢</p><div><button type="button" onClick={() => setDefensivePage((page) => Math.max(1, page - 1))} disabled={activeDefensivePage === 1} aria-label="上一頁"><ChevronLeft size={15} /> 上一頁</button><span aria-current="page">{activeDefensivePage} / {defensivePageTotal}</span><button type="button" onClick={() => setDefensivePage((page) => Math.min(defensivePageTotal, page + 1))} disabled={activeDefensivePage === defensivePageTotal} aria-label="下一頁">下一頁 <ChevronRight size={15} /></button></div></nav>}</> : <div className="zero-result-card"><CircleAlert size={19} /><div><strong>此策略本次快照為 0 檔</strong><p>目前沒有股票同時符合全部條件。市場資料更新後，可由上方來源連結重新核對。</p></div></div>}
+          </div>{isDefensiveScreen && <div className="defensive-sector-quick-filter" role="group" aria-label="防禦型產業快速篩選"><span>防禦產業</span><button type="button" className={sector === "全部產業" ? "active" : ""} onClick={() => setSector("全部產業")}>全部</button>{DEFENSIVE_QUICK_SECTORS.map((option) => <button key={option.value} type="button" className={sector === option.value ? "active" : ""} onClick={() => setSector(option.value)}>{option.label}</button>)}</div>}<div className="table-shell"><table><thead><tr><th>排名</th><th><SortableHeading label="代碼" column="ticker" active={sortKey} direction={sortDirection} onSort={handleSort} /></th><th>公司／產業</th><th><SortableHeading label="市值" column="marketCapBn" active={sortKey} direction={sortDirection} onSort={handleSort} /></th><th><SortableHeading label="本益比" column="pe" active={sortKey} direction={sortDirection} onSort={handleSort} /></th><th><SortableHeading label="股價" column="price" active={sortKey} direction={sortDirection} onSort={handleSort} /></th><th><SortableHeading label="漲跌幅" column="change" active={sortKey} direction={sortDirection} onSort={handleSort} /></th><th><SortableHeading label="成交量" column="volume" active={sortKey} direction={sortDirection} onSort={handleSort} /></th><th>AI 摘要</th><th /></tr></thead><tbody>{renderedRankedStocks.map(({ stock, rank }) => <StockRow key={stock.ticker} stock={stock} rank={rank} listingBadge={listingBadges.get(stock.ticker) ?? null} history={miniPriceHistories.data?.histories[stock.ticker]} currentPrice={currentPrices.get(stock.ticker)} isHistoryLoading={miniPriceHistories.isLoading} isExpanded={expandedTicker === stock.ticker} isFavorite={watchlistTickers.includes(stock.ticker)} onToggle={handleToggleExpand} onToggleWatchlist={handleToggleWatchlistRow} onSummary={requestSummary} />)}</tbody></table>{visibleStocks.length === 0 && <div className="empty-state">此搜尋或產業條件下沒有符合結果。</div>}</div>{isDefensiveScreen && visibleStocks.length > 0 && <nav className="defensive-pagination" aria-label="防禦型股票清單分頁"><p>第 {activeDefensivePage} / {defensivePageTotal} 頁 · 每頁 {DEFENSIVE_PAGE_SIZE} 檔迷你走勢</p><div><button type="button" onClick={() => setDefensivePage((page) => Math.max(1, page - 1))} disabled={activeDefensivePage === 1} aria-label="上一頁"><ChevronLeft size={15} /> 上一頁</button><span aria-current="page">{activeDefensivePage} / {defensivePageTotal}</span><button type="button" onClick={() => setDefensivePage((page) => Math.min(defensivePageTotal, page + 1))} disabled={activeDefensivePage === defensivePageTotal} aria-label="下一頁">下一頁 <ChevronRight size={15} /></button></div></nav>}</> : <div className="zero-result-card"><CircleAlert size={19} /><div><strong>此策略本次快照為 0 檔</strong><p>目前沒有股票同時符合全部條件。市場資料更新後，可由上方來源連結重新核對。</p></div></div>}
         </section>
         </>}
         <footer className="dashboard-footer"><div><Layers size={15} /> <span>資料來源：Finviz Screener · {isInsiderScreen ? "Finviz Insider Trading · 買入與賣出 Form 4 快照" : `Finviz Screener · ${screens.length} 組 URL 均可於上方原始條件連結核對。`}</span></div><p>僅供研究與分析使用，不構成個人化投資建議。</p></footer>
@@ -665,6 +678,40 @@ export default function Home() {
         </button>
       </nav>
     </div>
+  );
+}
+
+function ListingBadges({ badge }: { badge: ListingBadge | null }) {
+  if (!badge || (!badge.isNew && badge.streak < 2)) return null;
+  return (
+    <span className="listing-badges">
+      {badge.isNew && <span className="listing-badge listing-badge--new" title="前一個美股交易日不在此名單，今天新進榜">NEW</span>}
+      {badge.streak >= 2 && <span className={`listing-badge listing-badge--streak${badge.streak >= 5 ? " is-long" : ""}`} title={`已連續 ${badge.streak}${badge.streakCapped ? " 個以上" : " 個"}美股交易日在此名單`}>連 {badge.streak}{badge.streakCapped ? "+" : ""} 天</span>}
+    </span>
+  );
+}
+
+function ListingChangesPanel({ history, onlyNew, onToggleOnlyNew }: { history: ScreenHistory; onlyNew: boolean; onToggleOnlyNew: () => void }) {
+  const hasBaseline = Boolean(history.previousSessionDate);
+  const longest = Object.entries(history.streaks).filter(([, days]) => days >= 3).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const isCapped = (days: number) => days >= history.sessionsAvailable;
+  return (
+    <section className="listing-changes" aria-label="每日進出名單" data-role="listing-changes">
+      <div className="section-head">
+        <div><p className="eyebrow">DAILY CHANGES</p><h2>今日進出名單</h2></div>
+        <div className="sector-panel-actions">
+          <span className="listing-changes-compare">{hasBaseline ? `美股 ${formatSessionDate(history.sessionDate)} vs ${formatSessionDate(history.previousSessionDate)}` : `美股 ${formatSessionDate(history.sessionDate)}`}</span>
+          {hasBaseline && history.newTickers.length > 0 && <button type="button" className={`listing-filter-toggle ${onlyNew ? "active" : ""}`} data-role="listing-only-new" aria-pressed={onlyNew} onClick={onToggleOnlyNew}>{onlyNew ? <X size={11} /> : <Sparkles size={11} />}{onlyNew ? "顯示全部" : "只看新進"}</button>}
+        </div>
+      </div>
+      {hasBaseline ? (
+        <div className="listing-changes-grid">
+          <div className="listing-changes-col is-new"><h3>新進榜 <b>{history.newTickers.length}</b></h3>{history.newTickers.length ? <div className="listing-chip-list">{history.newTickers.map((ticker) => <a key={ticker} className="listing-chip" href={`https://finviz.com/quote.ashx?t=${ticker}`} target="_blank" rel="noreferrer"><strong>{ticker}</strong></a>)}</div> : <p className="listing-empty">沒有新進的股票。</p>}</div>
+          <div className="listing-changes-col is-dropped"><h3>掉出名單 <b>{history.dropped.length}</b></h3>{history.dropped.length ? <div className="listing-chip-list">{history.dropped.map((item) => <a key={item.ticker} className="listing-chip" href={`https://finviz.com/quote.ashx?t=${item.ticker}`} target="_blank" rel="noreferrer" title={item.company}><strong>{item.ticker}</strong>{item.company && <small>{item.company}</small>}</a>)}</div> : <p className="listing-empty">沒有股票掉出名單。</p>}</div>
+        </div>
+      ) : <p className="listing-note">目前只有一個交易日的快照，下一次同步後就會開始比對新進與掉出的股票。</p>}
+      {longest.length > 0 && <p className="listing-note"><strong>連續上榜最久：</strong>{longest.map(([ticker, days]) => `${ticker} ${days}${isCapped(days) ? "+" : ""} 天`).join("、")}</p>}
+    </section>
   );
 }
 
@@ -816,7 +863,7 @@ function StockDetails({ stock, onSummary }: { stock: Stock; onSummary: () => voi
   return <div className="stock-detail-panel"><div><span>市值</span><strong>{stock.marketCapLabel}</strong></div><div><span>本益比</span><strong>{stock.pe}</strong></div><div><span>成交量</span><strong>{stock.volume.toLocaleString("en-US")}</strong></div><DetailPriceChart ticker={stock.ticker} /><button type="button" className="ai-summary-inline" onClick={onSummary}><Sparkles size={14} /> 產生 AI 快照摘要</button></div>;
 }
 
-const StockRow = memo(function StockRow({ stock, rank, history, currentPrice, isHistoryLoading, isExpanded, isFavorite, onToggle, onToggleWatchlist, onSummary }: { stock: Stock; rank: number; history?: MiniPriceHistory; currentPrice?: number; isHistoryLoading: boolean; isExpanded: boolean; isFavorite: boolean; onToggle: (ticker: string) => void; onToggleWatchlist: (stock: Stock) => void; onSummary: (stock: Stock) => void }) {
+const StockRow = memo(function StockRow({ stock, rank, listingBadge, history, currentPrice, isHistoryLoading, isExpanded, isFavorite, onToggle, onToggleWatchlist, onSummary }: { stock: Stock; rank: number; listingBadge: ListingBadge | null; history?: MiniPriceHistory; currentPrice?: number; isHistoryLoading: boolean; isExpanded: boolean; isFavorite: boolean; onToggle: (ticker: string) => void; onToggleWatchlist: (stock: Stock) => void; onSummary: (stock: Stock) => void }) {
   const rankTier = getRankBadgeTier(rank);
   const rankTierLabel = rankTier === "gold" ? "金牌" : rankTier === "silver" ? "銀牌" : rankTier === "bronze" ? "銅牌" : null;
   const isPositiveChange = stock.change >= 0;
@@ -826,7 +873,7 @@ const StockRow = memo(function StockRow({ stock, rank, history, currentPrice, is
     <>
       <tr className={`stock-row ${isExpanded ? "expanded" : ""}`}>
         <td className="rank-cell"><span className={`rank-badge${rankTier ? ` rank-badge--${rankTier}` : ""}`} data-rank-tier={rankTier ?? undefined} aria-label={`目前第 ${rank} 名${rankTierLabel ? `，${rankTierLabel}徽章` : ""}`}>{rank}</span></td>
-        <td><a className="ticker-link" href={`https://finviz.com/quote.ashx?t=${stock.ticker}`} target="_blank" rel="noreferrer">{stock.ticker}<ArrowUpRight size={13} /></a></td>
+        <td><a className="ticker-link" href={`https://finviz.com/quote.ashx?t=${stock.ticker}`} target="_blank" rel="noreferrer">{stock.ticker}<ArrowUpRight size={13} /></a><ListingBadges badge={listingBadge} /></td>
         <td><div className="stock-card-company"><div className="stock-card-primary-row"><div className="stock-card-primary-info"><div className="company-cell"><strong>{stock.company}</strong><span>{stock.sector} · {stock.industry} · {stock.country}</span></div></div><MiniCandlestick ticker={stock.ticker} history={history} isLoading={isHistoryLoading} /></div><div className="stock-card-metric-row" aria-label={`${stock.ticker} 五項評估指標`}>{cardMetrics.map((metric) => <span key={metric.label} className={metric.isUnavailable ? "unavailable" : ""}><small>{metric.label}</small><b>{metric.value}</b></span>)}</div><button type="button" className="stock-card-detail-row" onClick={() => onToggle(stock.ticker)} aria-expanded={isExpanded} aria-label={`${isExpanded ? "收合" : "展開"} ${stock.ticker} 的詳細資料`}><span>細節</span><span>{isExpanded ? "收合" : "展開"}<ChevronDown size={13} /></span></button><button type="button" className={`watchlist-row-toggle ${isFavorite ? "is-saved" : ""}`} data-role="watchlist-toggle" data-ticker={stock.ticker} aria-pressed={isFavorite} aria-label={isFavorite ? `從自選股移除 ${stock.ticker}` : `加入 ${stock.ticker} 至自選股`} title={isFavorite ? "移除自選股" : "加入自選股"} onClick={() => onToggleWatchlist(stock)}>{isFavorite ? <X size={14} /> : <Plus size={15} />}</button></div></td>
         <td className="num">{stock.marketCapLabel}</td><td className="num muted-num">{stock.pe}</td><td className="num">{formatUsd(displayPrice)}</td><td><span className={`change-pill ${isPositiveChange ? "positive" : "negative"}`}>{isPositiveChange ? "+" : ""}{stock.change.toFixed(2)}%</span></td><td className="num">{stock.volume.toLocaleString("en-US")}</td><td className="ai-cell"><button type="button" className="ai-summary-button" onClick={() => onSummary(stock)}><Sparkles size={14} /> AI 摘要</button></td><td><a className="row-link" href={`https://finviz.com/quote.ashx?t=${stock.ticker}`} target="_blank" rel="noreferrer" aria-label={`開啟 ${stock.ticker} Finviz 報價頁`}><ArrowUpRight size={16} /></a></td>
       </tr>

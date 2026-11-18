@@ -107,6 +107,34 @@ curl -X POST https://<your-worker>.workers.dev/trpc/finvizSync.triggerNow \
   -H "Content-Type: application/json"
 ```
 
+## 每日進出名單、連續上榜天數與推播
+
+前端每個篩選視角（內部人資訊除外）都會顯示：
+
+- **今日進出名單**：跟前一個美股交易日比較，列出新進榜與掉出名單的股票，可切換「只看新進」。
+- **股票列徽章**：`NEW`（今天新進）、`連 N 天`（連續上榜的美股交易日數；`N+` 代表已經到歷史視窗上限，實際更久）。
+
+資料直接從 `finviz_screen_snapshots` 既有的歷史快照計算（`finvizSync.getScreenHistory`），不需要新的 migration。
+快照會先歸到所屬的美股交易日（紐約時間 09:30 前抓的算前一個交易日、週末算週五），所以週末 cron 與手動同步不會灌水連續天數。美股假日不特別處理，會多算一天。
+
+每天 cron 同步完成後會推播進出名單；跟上一次 cron 屬於同一個美股交易日（週日、週一早上）或所有視角都沒有變化時不推。通道都是選填，沒設就略過：
+
+```bash
+cd backend
+# Discord：沒設的話沿用 ALERT_WEBHOOK_URL
+npx wrangler secret put DIGEST_WEBHOOK_URL
+# LINE Messaging API（LINE Notify 已在 2025/3 停止服務）：兩個都要設
+npx wrangler secret put LINE_CHANNEL_ACCESS_TOKEN   # LINE Developers → Messaging API → Channel access token (long-lived)
+npx wrangler secret put LINE_TO                     # 你的 userId（U 開頭，Basic settings 最下方「Your user ID」）
+```
+
+不用等明天 cron，可以直接測試推播：
+
+```bash
+curl -X POST "https://<your-worker>.workers.dev/trpc/finvizSync.sendDigestNow" \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" -H "content-type: application/json" -d '{}'
+```
+
 ## 上線前務必做的事
 
 `backend/src/finviz/parseScreen.ts` 與 `parseInsiderTrading.ts` 裡的 HTML

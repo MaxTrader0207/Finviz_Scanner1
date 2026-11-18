@@ -1,8 +1,10 @@
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "./router";
-import { createContext, type Env } from "./context";
+import { createContext, digestChannelsFromEnv, type Env } from "./context";
 import { getDb } from "./db/client";
 import { runFinvizSync } from "./finviz/syncRunner";
+import { sendDailyDigest } from "./finviz/dailyDigest";
+import { isNewSessionSinceLastCron } from "./finviz/screenHistory";
 
 const TRPC_ENDPOINT = "/trpc";
 
@@ -63,7 +65,19 @@ export default {
    */
   async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(
-      runFinvizSync(getDb(env.DB), "cron", env.ALERT_WEBHOOK_URL).catch((error) => {
+      (async () => {
+        const db = getDb(env.DB);
+        const startedAt = new Date();
+        const summary = await runFinvizSync(db, "cron", env.ALERT_WEBHOOK_URL);
+        if (summary.successfulScreens === 0) return;
+        // 同步完成後推播每日進出名單；週末/週一早上抓到的仍是同一個美股交易日，不重複推。
+        if (!(await isNewSessionSinceLastCron(db, summary.runId, startedAt))) {
+          console.log("[Digest] 與上次 cron 為同一美股交易日，略過推播");
+          return;
+        }
+        const digest = await sendDailyDigest(db, digestChannelsFromEnv(env), env.SITE_URL);
+        console.log("[Digest]", JSON.stringify(digest));
+      })().catch((error) => {
         console.error("[Finviz Sync] scheduled run failed:", error);
       })
     );

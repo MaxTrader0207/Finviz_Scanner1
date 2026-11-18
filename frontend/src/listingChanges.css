@@ -1,0 +1,38 @@
+/* 每日進出名單 + 連續上榜徽章（沿用 Market Editorial 的 teal / copper 語意色） */
+.listing-badges{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.listing-badge{display:inline-flex;align-items:center;min-height:17px;padding:1px 5px;font-size:8px;font-weight:900;letter-spacing:.06em;line-height:1;white-space:nowrap;font-variant-numeric:tabular-nums}
+.listing-badge--new{color:#f8f4ea;background:#c08b48}
+.listing-badge--streak{color:#176c63;background:#e1efe9;border:1px solid #afd4c5}
+.listing-badge--streak.is-long{color:#f8f4ea;background:#147b72;border-color:#147b72}
+
+.listing-changes{margin-top:18px;padding:20px 24px;background:rgba(252,250,244,.82);border:1px solid #d7d4c9}
+.listing-changes .section-head h2{font-size:24px}
+.listing-changes-compare{color:#6d7773;font-size:11px;font-weight:700;white-space:nowrap}
+.listing-changes-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px}
+.listing-changes-col h3{display:flex;align-items:center;gap:6px;margin-bottom:9px;color:#283b42;font-size:12px;font-weight:900;letter-spacing:.04em}
+.listing-changes-col h3 b{font-family:"DM Serif Display",Georgia,serif;font-size:20px;font-weight:400}
+.listing-changes-col.is-new h3 b{color:#c08b48}
+.listing-changes-col.is-dropped h3 b{color:#7c8581}
+.listing-chip-list{display:flex;flex-wrap:wrap;gap:6px}
+.listing-chip{display:inline-flex;align-items:baseline;gap:5px;padding:5px 8px;background:#f5f4ee;border:1px solid #d5dad1;font-size:11px;text-decoration:none;color:#243540}
+.listing-chip strong{font-weight:900;letter-spacing:.03em}
+.listing-chip small{max-width:130px;overflow:hidden;color:#77807b;font-size:9px;text-overflow:ellipsis;white-space:nowrap}
+.is-new .listing-chip{border-color:#e2c9a4;background:#f8efe2}
+.is-new .listing-chip strong{color:#8e5f25}
+.is-dropped .listing-chip strong{color:#6b7470;text-decoration:line-through;text-decoration-color:rgba(107,116,112,.5)}
+button.listing-chip{cursor:pointer;transition:transform 160ms var(--ease-out)}
+button.listing-chip:active{transform:scale(.97)}
+.listing-empty{color:#7c8581;font-size:11px}
+.listing-filter-toggle{min-height:26px;display:inline-flex;align-items:center;gap:4px;padding:4px 8px;color:#8e5f25;background:#f8efe2;border:1px solid #e2c9a4;font-size:10px;font-weight:900;white-space:nowrap;transition:transform 160ms var(--ease-out),background-color 160ms var(--ease-out)}
+.listing-filter-toggle.active{color:#f8f4ea;background:#c08b48;border-color:#c08b48}
+.listing-filter-toggle:active{transform:scale(.97)}
+.listing-note{margin-top:12px;color:#7c8581;font-size:10px;line-height:1.5}
+
+@media (max-width: 740px){
+  .listing-changes{padding:16px}
+  .listing-changes .section-head{flex-wrap:wrap}
+  .listing-changes-grid{grid-template-columns:1fr;gap:14px}
+  .table-shell td:nth-child(2){flex-direction:column;align-items:center;gap:0}
+  .listing-badges{flex-direction:column;align-items:center;gap:3px;margin-top:4px}
+  .listing-badge{min-height:15px;padding:1px 4px;font-size:7px}
+}

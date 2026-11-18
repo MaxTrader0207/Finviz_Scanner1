@@ -10,7 +10,22 @@ export type Env = {
   ANTHROPIC_API_KEY: string;
   ALERT_WEBHOOK_URL?: string;
   ALLOWED_ORIGIN?: string;
+  /** 每日進出名單推播：Discord webhook（沒設時沿用 ALERT_WEBHOOK_URL）。 */
+  DIGEST_WEBHOOK_URL?: string;
+  /** 每日進出名單推播：LINE Messaging API。兩個都設才會推 LINE。 */
+  LINE_CHANNEL_ACCESS_TOKEN?: string;
+  LINE_TO?: string;
+  /** 推播訊息底部附的前端網址（wrangler.toml [vars]）。 */
+  SITE_URL?: string;
 };
+
+export function digestChannelsFromEnv(env: Env) {
+  return {
+    discordWebhookUrl: env.DIGEST_WEBHOOK_URL || env.ALERT_WEBHOOK_URL,
+    lineChannelAccessToken: env.LINE_CHANNEL_ACCESS_TOKEN,
+    lineTo: env.LINE_TO,
+  };
+}
 
 /**
  * 單人使用工具不需要完整的 OAuth 系統。這裡用一個簡單的 bearer token

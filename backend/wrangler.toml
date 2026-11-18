@@ -17,7 +17,9 @@ database_name = "signal-ledger-db"
 database_id = "0cd7e04c-6170-42f2-8f0e-e2eea6bba4c7"
 migrations_dir = "drizzle"
 
-# 非機密設定值。實際機密（ADMIN_TOKEN / ANTHROPIC_API_KEY / ALERT_WEBHOOK_URL）
+# 非機密設定值。實際機密（ADMIN_TOKEN / ANTHROPIC_API_KEY / ALERT_WEBHOOK_URL，
+# 以及每日推播用的 DIGEST_WEBHOOK_URL / LINE_CHANNEL_ACCESS_TOKEN / LINE_TO）
 # 用 `wrangler secret put <NAME>` 個別設定，不要寫在這個檔案裡（見 README）。
 [vars]
 ALLOWED_ORIGIN = "https://MaxTrader0207.github.io"
+SITE_URL = "https://maxtrader0207.github.io/Finviz_Scanner1/"
