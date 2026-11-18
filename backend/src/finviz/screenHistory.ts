@@ -17,7 +17,7 @@ import { SCREEN_SOURCES } from "./screenSources";
 /** 每個視角往回讀的快照筆數（含週末與手動同步，約 4 週）。 */
 export const HISTORY_LOOKBACK_ROWS = 30;
 
-type SnapshotStock = { ticker: string; company?: string };
+export type SnapshotStock = { ticker: string; company?: string; price?: number };
 
 export type HistorySnapshotInput = {
   fetchedAt: Date;
@@ -67,14 +67,23 @@ export function toUsSessionDate(at: Date): string {
 }
 
 /** 純函式：輸入同一視角「新到舊」排列的快照，算出進出名單與連續天數。 */
-export function computeScreenHistory(snapshotsNewestFirst: HistorySnapshotInput[]): ScreenHistory {
-  // 同一交易日只留最新那筆。
-  const sessions: Array<{ date: string; tickers: Set<string>; stocks: SnapshotStock[] }> = [];
+export type Session = { date: string; tickers: Set<string>; stocks: SnapshotStock[] };
+
+/** 把同一視角「新到舊」的快照歸併成「新到舊」的美股交易日（同一交易日只留最新那筆）。 */
+export function collapseToSessions(snapshotsNewestFirst: HistorySnapshotInput[]): Session[] {
+  const sessions: Session[] = [];
+  const seen = new Set<string>();
   for (const snapshot of snapshotsNewestFirst) {
     const date = toUsSessionDate(snapshot.fetchedAt);
-    if (sessions.some((session) => session.date === date)) continue;
+    if (seen.has(date)) continue;
+    seen.add(date);
     sessions.push({ date, tickers: new Set(snapshot.stocks.map((stock) => stock.ticker)), stocks: snapshot.stocks });
   }
+  return sessions;
+}
+
+export function computeScreenHistory(snapshotsNewestFirst: HistorySnapshotInput[]): ScreenHistory {
+  const sessions = collapseToSessions(snapshotsNewestFirst);
 
   const latest = sessions[0];
   if (!latest) {
@@ -101,13 +110,13 @@ export function computeScreenHistory(snapshotsNewestFirst: HistorySnapshotInput[
   };
 }
 
-function parseStocks(raw: string): SnapshotStock[] {
+export function parseStocks(raw: string): SnapshotStock[] {
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
     return parsed
       .filter((item): item is SnapshotStock => typeof item === "object" && item !== null && typeof (item as SnapshotStock).ticker === "string")
-      .map((item) => ({ ticker: item.ticker, company: item.company }));
+      .map((item) => ({ ticker: item.ticker, company: item.company, price: typeof item.price === "number" ? item.price : undefined }));
   } catch {
     return [];
   }

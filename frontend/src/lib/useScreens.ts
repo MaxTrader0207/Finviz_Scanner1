@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { trpc } from "./trpc";
 import { screens as staticScreens, type Screen, type Stock } from "./screenerData";
+import type { InsiderTransaction } from "./insiderTrading";
 
 const SNAPSHOT_TIME_FORMATTER = new Intl.DateTimeFormat("zh-TW", {
   timeZone: "Asia/Taipei",
@@ -24,6 +25,10 @@ export type UseScreensResult = {
   lastSyncedAt: number | null;
   /** 尚未同步過的視角清單（仍在顯示靜態展示資料）。 */
   staleScreenKeys: string[];
+  /** 內部人資訊視角的即時快照（買進／賣出交易），還沒同步過時為 null。 */
+  insiderLive: { buy: InsiderTransaction[]; sale: InsiderTransaction[] } | null;
+  /** 各視角最新快照時間（毫秒），用來判斷個別視角是否過期。 */
+  screenFetchedAt: Record<string, number>;
 };
 
 /**
@@ -45,7 +50,7 @@ export function useScreens(): UseScreensResult {
     }
 
     if (!data || data.length === 0) {
-      return { screens: staticScreens, isLive: false, lastSyncedAt: null, staleScreenKeys: staticScreens.map((s) => s.key) };
+      return { screens: staticScreens, isLive: false, lastSyncedAt: null, staleScreenKeys: staticScreens.map((s) => s.key), insiderLive: null, screenFetchedAt: {} };
     }
 
     const byKey = new Map(data.map((snapshot) => [snapshot.screenKey, snapshot]));
@@ -93,6 +98,10 @@ export function useScreens(): UseScreensResult {
 
     const lastSyncedAt = Math.max(...data.map((snapshot) => new Date(snapshot.fetchedAt).getTime()));
 
-    return { screens: merged, isLive: true, lastSyncedAt, staleScreenKeys };
+    const insiderSnapshot = byKey.get("insiderTrading")?.stocks as { buy?: InsiderTransaction[]; sale?: InsiderTransaction[] } | undefined;
+    const insiderLive = insiderSnapshot && Array.isArray(insiderSnapshot.buy) ? { buy: insiderSnapshot.buy, sale: insiderSnapshot.sale ?? [] } : null;
+    const screenFetchedAt = Object.fromEntries(data.map((snapshot) => [snapshot.screenKey, new Date(snapshot.fetchedAt).getTime()]));
+
+    return { screens: merged, isLive: true, lastSyncedAt, staleScreenKeys, insiderLive, screenFetchedAt };
   }, [data, error]);
 }

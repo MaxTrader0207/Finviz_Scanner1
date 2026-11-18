@@ -2,7 +2,8 @@ import { adminProcedure, publicProcedure, router } from "../trpc";
 import { runFinvizSync, getLatestSnapshots, getLatestRunStatus } from "../finviz/syncRunner";
 import { getScreenHistories } from "../finviz/screenHistory";
 import { sendDailyDigest } from "../finviz/dailyDigest";
-import { digestChannelsFromEnv } from "../context";
+import { alertChannelsFromEnv, digestChannelsFromEnv } from "../context";
+import { runHealthCheck } from "../finviz/healthCheck";
 
 export const finvizSyncRouter = router({
   /** 前端用這支取代原本對 screenerData.ts 的靜態 import。 */
@@ -19,6 +20,9 @@ export const finvizSyncRouter = router({
    * 排程本身宣告在 wrangler.toml 的 [triggers].crons，不需要額外的註冊 API。
    */
   triggerNow: adminProcedure.mutation(({ ctx }) => runFinvizSync(ctx.db, "manual", ctx.env.ALERT_WEBHOOK_URL)),
+
+  /** 手動跑一次健康檢查（有問題才會發警示）。 */
+  runHealthCheck: adminProcedure.mutation(({ ctx }) => runHealthCheck(ctx.db, alertChannelsFromEnv(ctx.env), ctx.env.SITE_URL)),
 
   /** 手動補發／測試每日進出名單推播（不檢查是否為新交易日）。 */
   sendDigestNow: adminProcedure.mutation(({ ctx }) => sendDailyDigest(ctx.db, digestChannelsFromEnv(ctx.env), ctx.env.SITE_URL)),

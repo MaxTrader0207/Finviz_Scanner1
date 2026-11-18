@@ -1,4 +1,4 @@
-import { index, int, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, int, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 /**
  * Cloudflare D1 版本的 schema，取代原本 MySQL/TiDB 版本。
@@ -52,3 +52,36 @@ export const finvizSyncSettings = sqliteTable("finviz_sync_settings", {
   lastSuccessfulRunId: int("last_successful_run_id"),
   lastSuccessfulAt: int("last_successful_at", { mode: "timestamp_ms" }),
 });
+
+/**
+ * 篩選績效追蹤：每一筆「某檔股票在某個美股交易日新進某個視角」的事件，
+ * 以及之後 1／5／20 個交易日的收盤報酬（與同期 SPY 對照）。
+ * 由 cron 從 finviz_screen_snapshots 推導寫入，報酬由 Yahoo Finance 日線逐日補齊。
+ */
+export const screenEntries = sqliteTable(
+  "screen_entries",
+  {
+    id: int("id").primaryKey({ autoIncrement: true }),
+    screenKey: text("screen_key").notNull(),
+    ticker: text("ticker").notNull(),
+    /** 新進榜的美股交易日（YYYY-MM-DD，紐約時間） */
+    sessionDate: text("session_date").notNull(),
+    /** 快照上的價格（Yahoo 查不到收盤價時的備援） */
+    snapshotPrice: real("snapshot_price"),
+    /** 進榜當日收盤價（報酬的計算基準） */
+    entryClose: real("entry_close"),
+    ret1d: real("ret_1d"),
+    ret5d: real("ret_5d"),
+    ret20d: real("ret_20d"),
+    spy1d: real("spy_1d"),
+    spy5d: real("spy_5d"),
+    spy20d: real("spy_20d"),
+    /** 20 日報酬已補齊，或已超過可追蹤期限（例如下市、查無資料） */
+    completed: int("completed", { mode: "boolean" }).notNull().default(false),
+    updatedAt: int("updated_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    uniqueIndex("screen_entries_unique_idx").on(table.screenKey, table.ticker, table.sessionDate),
+    index("screen_entries_pending_idx").on(table.completed, table.sessionDate),
+  ]
+);

@@ -135,6 +135,27 @@ curl -X POST "https://<your-worker>.workers.dev/trpc/finvizSync.sendDigestNow" \
   -H "Authorization: Bearer <ADMIN_TOKEN>" -H "content-type: application/json" -d '{}'
 ```
 
+## 跨視角共振、篩選績效與健康檢查
+
+- **跨視角共振**（側欄「分析工具 A」）：同一檔股票同時出現在 2 個以上視角（內部人買進也算一個訊號）就列出來，依訊號數與連續上榜天數排序；同時有偏多與偏空訊號（例如 Top Losers、內部人賣出）會標示「訊號分歧」。純前端計算，不需要後端改動。
+- **篩選績效**（側欄「分析工具 B」）：每檔股票新進某視角的那天記一筆（`screen_entries` 表），追蹤之後 1／5／20 個交易日的收盤報酬，與同期 SPY 比較。每天 cron 會自動記錄新事件、補上到期的報酬（每次最多 150 檔，避免超過 Workers 子請求上限）。
+- **健康檢查**：第二個 cron（台灣 10:00）檢查是否超過 26 小時沒有成功同步、某個視角一直抓不到、或同步鎖卡住（會自動解除），有問題就推到 Discord／LINE。前端在資料過期時也會顯示紅色警示。
+
+第一次部署這個版本要先套用資料庫 migration：
+
+```bash
+cd backend
+npx wrangler d1 migrations apply signal-ledger-db --remote
+npx wrangler deploy
+```
+
+回補歷史績效（從 9 月以來的所有快照推導事件、補報酬）。回傳的 `remainingDueTickers` 大於 0 就再跑一次：
+
+```bash
+curl -X POST "https://<your-worker>.workers.dev/trpc/performance.backfill" \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" -H "content-type: application/json" -d '{}'
+```
+
 ## 上線前務必做的事
 
 `backend/src/finviz/parseScreen.ts` 與 `parseInsiderTrading.ts` 裡的 HTML

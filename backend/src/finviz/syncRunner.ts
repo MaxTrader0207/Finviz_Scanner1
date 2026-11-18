@@ -26,11 +26,14 @@ async function ensureSettingsRow(db: Db) {
 
 export async function runFinvizSync(db: Db, trigger: "manual" | "cron", webhookUrl: string | undefined): Promise<SyncRunSummary> {
   const settings = await ensureSettingsRow(db);
-  if (settings?.syncInProgress) {
+  const now = new Date();
+  // 鎖超過 30 分鐘還沒釋放，代表上一次 Worker 中途被回收（finally 沒跑到），直接接手，
+  // 否則鎖會永遠卡住、之後每天的 cron 都會失敗。
+  const lockIsFresh = settings?.syncStartedAt && now.getTime() - settings.syncStartedAt.getTime() < 30 * 60 * 1000;
+  if (settings?.syncInProgress && lockIsFresh) {
     throw new Error("A Finviz sync is already in progress");
   }
 
-  const now = new Date();
   await db
     .update(finvizSyncSettings)
     .set({ syncInProgress: true, syncStartedAt: now, ...(trigger === "manual" ? { lastManualTriggeredAt: now } : {}) })

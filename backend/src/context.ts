@@ -19,6 +19,15 @@ export type Env = {
   SITE_URL?: string;
 };
 
+/** 健康檢查警示：優先用 ALERT_WEBHOOK_URL，LINE 跟每日推播共用。 */
+export function alertChannelsFromEnv(env: Env) {
+  return {
+    discordWebhookUrl: env.ALERT_WEBHOOK_URL || env.DIGEST_WEBHOOK_URL,
+    lineChannelAccessToken: env.LINE_CHANNEL_ACCESS_TOKEN,
+    lineTo: env.LINE_TO,
+  };
+}
+
 export function digestChannelsFromEnv(env: Env) {
   return {
     discordWebhookUrl: env.DIGEST_WEBHOOK_URL || env.ALERT_WEBHOOK_URL,

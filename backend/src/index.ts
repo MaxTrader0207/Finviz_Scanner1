@@ -1,10 +1,15 @@
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "./router";
-import { createContext, digestChannelsFromEnv, type Env } from "./context";
+import { alertChannelsFromEnv, createContext, digestChannelsFromEnv, type Env } from "./context";
 import { getDb } from "./db/client";
 import { runFinvizSync } from "./finviz/syncRunner";
 import { sendDailyDigest } from "./finviz/dailyDigest";
 import { isNewSessionSinceLastCron } from "./finviz/screenHistory";
+import { recordEntries, updateReturns } from "./finviz/performance";
+import { runHealthCheck } from "./finviz/healthCheck";
+
+/** wrangler.toml 的第二個 cron：同步之後 4 小時做健康檢查。 */
+const HEALTH_CHECK_CRON = "0 2 * * *";
 
 const TRPC_ENDPOINT = "/trpc";
 
@@ -63,13 +68,31 @@ export default {
    * handler，不需要對外開放的 callback 端點。用 ctx.waitUntil 確保
    * Worker 不會在同步流程（依序抓 7+1 個頁面、中間有節流延遲）跑完前就被回收。
    */
-  async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    if (event.cron === HEALTH_CHECK_CRON) {
+      ctx.waitUntil(
+        runHealthCheck(getDb(env.DB), alertChannelsFromEnv(env), env.SITE_URL)
+          .then((result) => console.log("[Health]", JSON.stringify(result)))
+          .catch((error) => console.error("[Health] check failed:", error))
+      );
+      return;
+    }
     ctx.waitUntil(
       (async () => {
         const db = getDb(env.DB);
         const startedAt = new Date();
         const summary = await runFinvizSync(db, "cron", env.ALERT_WEBHOOK_URL);
         if (summary.successfulScreens === 0) return;
+
+        // 篩選績效：記錄新進事件、補齊到期的報酬。獨立 try，失敗不影響推播。
+        try {
+          const inserted = await recordEntries(db); // 讀全部歷史：只會新增還沒記過的事件，順便自動回補
+          const returns = await updateReturns(db);
+          console.log("[Performance]", JSON.stringify({ inserted, ...returns }));
+        } catch (error) {
+          console.error("[Performance] update failed:", error);
+        }
+
         // 同步完成後推播每日進出名單；週末/週一早上抓到的仍是同一個美股交易日，不重複推。
         if (!(await isNewSessionSinceLastCron(db, summary.runId, startedAt))) {
           console.log("[Digest] 與上次 cron 為同一美股交易日，略過推播");

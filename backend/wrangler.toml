@@ -6,8 +6,10 @@ compatibility_flags = ["nodejs_compat"]
 # 每日 22:00 UTC（= 台灣時間隔日 06:00，美股收盤之後）觸發一次 Finviz 同步。
 # 對應 src/index.ts 的 scheduled() handler，取代原本 Manus Heartbeat 的
 # HTTP callback 機制 —— 這裡完全宣告式、不需要對外開放任何 callback 端點。
+# 第二個（02:00 UTC = 台灣 10:00）是健康檢查：超過 26 小時沒有成功同步、某個視角一直抓不到、
+# 或同步鎖卡住時，發警示到 Discord/LINE。
 [triggers]
-crons = ["0 22 * * *"]
+crons = ["0 22 * * *", "0 2 * * *"]
 
 [[d1_databases]]
 binding = "DB"

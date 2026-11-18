@@ -39,6 +39,8 @@ import {
 // 套件從打包結果裡拿掉。
 import { type ScreenKey, type Stock } from "@/lib/screenerData";
 import { useScreens } from "@/lib/useScreens";
+import { isStale } from "@/lib/resonance";
+import { PerformanceView, ResonanceView, type ToolView } from "./AnalysisViews";
 import { formatSessionDate, getListingBadge, useScreenHistories, type ListingBadge, type ScreenHistory } from "@/lib/screenHistory";
 import { calculateMacd, calculateRsi, calculateSimpleMovingAverage, findLatestRsiExtremeEntry, getAllMovingAveragePeriods, getRsiZone, getVisibleMovingAveragePeriods, MOVING_AVERAGE_PRESENTATIONS, MOVING_AVERAGE_VISIBILITY_STORAGE_KEY, parseVisibleMovingAveragePeriods, type MovingAveragePeriod, RSI_REFERENCE_BANDS, summarizeLatestMovingAverage } from "@/lib/movingAverage";
 import { buildDefaultPdfFileName, buildWatchlistPdfFileName, sanitizePdfFileName } from "@/lib/pdfExport";
@@ -143,7 +145,8 @@ function InsiderTradingView({ sectorData, sectorAxisMax, sectorDirection, onTogg
 }
 
 export default function Home() {
-  const { screens, isLive, lastSyncedAt, staleScreenKeys } = useScreens();
+  const { screens, isLive, lastSyncedAt, staleScreenKeys, insiderLive, screenFetchedAt } = useScreens();
+  const [toolView, setToolView] = useState<ToolView | null>(null);
   const screenHistories = useScreenHistories();
   const [onlyNewListings, setOnlyNewListings] = useState(false);
   const [activeScreen, setActiveScreen] = useState<ScreenKey>(() => {
@@ -292,7 +295,14 @@ export default function Home() {
 
   const leadingMove = useMemo(() => [...screen.stocks].sort((a, b) => isTopLosersScreen ? a.change - b.change : b.change - a.change)[0] ?? null, [isTopLosersScreen, screen]);
 
+  function openToolView(view: ToolView) {
+    setToolView(view);
+    setExpandedTicker(null);
+    scrollToScreenTop(window.scrollTo.bind(window));
+  }
+
   function changeScreen(key: ScreenKey) {
+    setToolView(null);
     setActiveScreen(key);
     scrollToScreenTop(window.scrollTo.bind(window));
     setExpandedTicker(null);
@@ -548,11 +558,20 @@ export default function Home() {
           <p className="rail-section-title">研究視角</p>
           <nav className="screen-nav">
             {screens.map((item, index) => (
-              <button key={item.key} onClick={() => changeScreen(item.key)} className={`screen-nav-item ${activeScreen === item.key ? "selected" : ""}`}>
+              <button key={item.key} onClick={() => changeScreen(item.key)} className={`screen-nav-item ${!toolView && activeScreen === item.key ? "selected" : ""}`}>
                 <span className="nav-index">0{index + 1}</span>
                 <span><strong>{item.name}</strong><small>{item.navLabel}</small></span>
               </button>
             ))}
+          </nav>
+          <p className="rail-section-title rail-tools">分析工具</p>
+          <nav className="screen-nav">
+            <button type="button" onClick={() => openToolView("resonance")} className={`screen-nav-item ${toolView === "resonance" ? "selected" : ""}`} data-role="nav-resonance">
+              <span className="nav-index tool">A</span><span><strong>跨視角共振</strong><small>多訊號交集</small></span>
+            </button>
+            <button type="button" onClick={() => openToolView("performance")} className={`screen-nav-item ${toolView === "performance" ? "selected" : ""}`} data-role="nav-performance">
+              <span className="nav-index tool">B</span><span><strong>篩選績效</strong><small>進榜後報酬 vs SPY</small></span>
+            </button>
           </nav>
         </div>
         <div className="rail-source">
@@ -567,7 +586,12 @@ export default function Home() {
           <span className="live-indicator"><i /> 篩選快照</span>
           <div className="topline-right"><span>{screens.length} 組市場條件</span><span className="topline-dot">•</span><a href={screen.sourceUrl} target="_blank" rel="noreferrer">查看原始條件 <ArrowUpRight size={13} /></a><span className="topline-dot">•</span><span className="sync-status" data-role="finviz-sync-status" title={isLive ? "至少一組視角已由排程同步取得資料" : "資料庫尚無同步紀錄，目前顯示展示用靜態資料"}>{isLive ? `Finviz 同步：${lastSyncedAt ? formatPriceUpdatedAt(lastSyncedAt) : "—"}` : "Finviz 同步：尚未同步（展示資料）"}{staleScreenKeys.includes(activeScreen) && isLive ? " · 本視角待首次同步" : ""}</span><div className="price-refresh-control" aria-live="polite"><span className="price-refresh-status">股價更新：{formatPriceUpdatedAt(lastPriceUpdatedAt)}{priceRefreshError ? ` · ${priceRefreshError}` : ""}</span><button type="button" className="price-refresh-button" data-role="refresh-current-prices" onClick={refreshCurrentPrices} disabled={!priceHistoryInput.tickers.length || isPriceRefreshing} aria-label="更新目前股價"><RefreshCw size={13} className={isPriceRefreshing ? "is-spinning" : undefined} /><span>{isPriceRefreshing ? "更新中…" : "更新目前股價"}</span></button></div></div>
         </header>
+        {isLive && isStale(lastSyncedAt) && <div className="stale-banner" role="alert" data-role="stale-banner"><CircleAlert size={15} /><p><strong>資料可能已過期：</strong>超過 26 小時沒有成功同步 Finviz（最後一次 {lastSyncedAt ? formatPriceUpdatedAt(lastSyncedAt) : "—"}）。每日排程可能失敗了，請檢查 Cloudflare Worker 的 log。</p></div>}
+        {isLive && !isStale(lastSyncedAt) && !toolView && isStale(screenFetchedAt[activeScreen]) && <div className="stale-banner" role="alert"><CircleAlert size={15} /><p><strong>本視角資料過期：</strong>其他視角正常更新，但這個視角超過 26 小時沒有抓到新資料（可能是 Finviz 改版或條件無法解析），目前顯示的是最後一次成功的名單。</p></div>}
 
+        {toolView === "resonance" ? <ResonanceView screens={screens} histories={screenHistories} insider={insiderLive} isLive={isLive} onOpenScreen={(key) => changeScreen(key as ScreenKey)} />
+        : toolView === "performance" ? <PerformanceView />
+        : <>
         <section className="hero-panel" style={{ backgroundImage: "linear-gradient(90deg, rgba(13, 28, 48, .98) 0%, rgba(13, 28, 48, .93) 45%, rgba(13, 28, 48, .26) 100%)" }}>
           <div className="hero-copy"><p className="eyebrow copper-text">{screen.eyebrow}</p><h1 className={isDefensiveScreen ? "hero-title-defensive" : undefined}>{screen.name}</h1><p>{screen.note}</p></div>
           <div className="hero-signal"><span>本次訊號</span><strong>{screen.signal}</strong><div className="signal-line"><i /><i /><i /><i /><i /></div></div>
@@ -613,6 +637,7 @@ export default function Home() {
             </div>
           </div>{isDefensiveScreen && <div className="defensive-sector-quick-filter" role="group" aria-label="防禦型產業快速篩選"><span>防禦產業</span><button type="button" className={sector === "全部產業" ? "active" : ""} onClick={() => setSector("全部產業")}>全部</button>{DEFENSIVE_QUICK_SECTORS.map((option) => <button key={option.value} type="button" className={sector === option.value ? "active" : ""} onClick={() => setSector(option.value)}>{option.label}</button>)}</div>}<div className="table-shell"><table><thead><tr><th>排名</th><th><SortableHeading label="代碼" column="ticker" active={sortKey} direction={sortDirection} onSort={handleSort} /></th><th>公司／產業</th><th><SortableHeading label="市值" column="marketCapBn" active={sortKey} direction={sortDirection} onSort={handleSort} /></th><th><SortableHeading label="本益比" column="pe" active={sortKey} direction={sortDirection} onSort={handleSort} /></th><th><SortableHeading label="股價" column="price" active={sortKey} direction={sortDirection} onSort={handleSort} /></th><th><SortableHeading label="漲跌幅" column="change" active={sortKey} direction={sortDirection} onSort={handleSort} /></th><th><SortableHeading label="成交量" column="volume" active={sortKey} direction={sortDirection} onSort={handleSort} /></th><th>AI 摘要</th><th /></tr></thead><tbody>{renderedRankedStocks.map(({ stock, rank }) => <StockRow key={stock.ticker} stock={stock} rank={rank} listingBadge={listingBadges.get(stock.ticker) ?? null} history={miniPriceHistories.data?.histories[stock.ticker]} currentPrice={currentPrices.get(stock.ticker)} isHistoryLoading={miniPriceHistories.isLoading} isExpanded={expandedTicker === stock.ticker} isFavorite={watchlistTickers.includes(stock.ticker)} onToggle={handleToggleExpand} onToggleWatchlist={handleToggleWatchlistRow} onSummary={requestSummary} />)}</tbody></table>{visibleStocks.length === 0 && <div className="empty-state">此搜尋或產業條件下沒有符合結果。</div>}</div>{isDefensiveScreen && visibleStocks.length > 0 && <nav className="defensive-pagination" aria-label="防禦型股票清單分頁"><p>第 {activeDefensivePage} / {defensivePageTotal} 頁 · 每頁 {DEFENSIVE_PAGE_SIZE} 檔迷你走勢</p><div><button type="button" onClick={() => setDefensivePage((page) => Math.max(1, page - 1))} disabled={activeDefensivePage === 1} aria-label="上一頁"><ChevronLeft size={15} /> 上一頁</button><span aria-current="page">{activeDefensivePage} / {defensivePageTotal}</span><button type="button" onClick={() => setDefensivePage((page) => Math.min(defensivePageTotal, page + 1))} disabled={activeDefensivePage === defensivePageTotal} aria-label="下一頁">下一頁 <ChevronRight size={15} /></button></div></nav>}</> : <div className="zero-result-card"><CircleAlert size={19} /><div><strong>此策略本次快照為 0 檔</strong><p>目前沒有股票同時符合全部條件。市場資料更新後，可由上方來源連結重新核對。</p></div></div>}
         </section>
+        </>}
         </>}
         <footer className="dashboard-footer"><div><Layers size={15} /> <span>資料來源：Finviz Screener · {isInsiderScreen ? "Finviz Insider Trading · 買入與賣出 Form 4 快照" : `Finviz Screener · ${screens.length} 組 URL 均可於上方原始條件連結核對。`}</span></div><p>僅供研究與分析使用，不構成個人化投資建議。</p></footer>
         <section className="investment-disclaimer" aria-label="投資警語">
@@ -665,12 +690,18 @@ export default function Home() {
       </AlertDialog>
       <nav className="mobile-screen-switcher" aria-label="快速切換篩選視角">
         {screens.map((item) => (
-          <button key={item.key} type="button" onClick={() => changeScreen(item.key)} className={activeScreen === item.key ? "selected" : ""}>
+          <button key={item.key} type="button" onClick={() => changeScreen(item.key)} className={!toolView && activeScreen === item.key ? "selected" : ""}>
             <span>{item.key === "qualityMomentum" ? <Activity size={15} /> : item.key === "insiderTrading" ? <Landmark size={15} /> : <Layers size={15} />}</span>
             <strong>{item.name}</strong>
-            <small>{activeScreen === item.key ? "已選擇" : "切換"}</small>
+            <small>{!toolView && activeScreen === item.key ? "已選擇" : "切換"}</small>
           </button>
         ))}
+        <button type="button" onClick={() => openToolView("resonance")} className={toolView === "resonance" ? "selected" : ""} data-role="mobile-resonance">
+          <span><Sparkles size={15} /></span><strong>跨視角共振</strong><small>{toolView === "resonance" ? "已選擇" : "切換"}</small>
+        </button>
+        <button type="button" onClick={() => openToolView("performance")} className={toolView === "performance" ? "selected" : ""} data-role="mobile-performance">
+          <span><Activity size={15} /></span><strong>篩選績效</strong><small>{toolView === "performance" ? "已選擇" : "切換"}</small>
+        </button>
         <button type="button" className="mobile-watchlist-switcher" data-role="mobile-watchlist-open" onClick={openWatchlistFromSwitcher} aria-label={`開啟自選股，目前 ${favoriteStocks.length} 檔`}>
           <span><Bookmark size={15} /></span>
           <strong>自選股</strong>
